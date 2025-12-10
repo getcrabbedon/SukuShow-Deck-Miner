@@ -1,12 +1,13 @@
 import logging
 import time
 import os
-from RCardData import db_load
-from RChart import Chart, MusicDB
-from RDeck import Deck
-from RLiveStatus import PlayerAttributes
-from SkillResolver import UseCardSkill, ApplyCenterSkillEffect, ApplyCenterAttribute, CheckCenterSkillCondition
-from CardLevelConfig import convert_deck_to_simulator_format, fix_windows_console_encoding, DEATH_NOTE
+
+from src.core.RCardData import db_load
+from src.core.RChart import Chart, MusicDB
+from src.core.RDeck import Deck
+from src.core.RLiveStatus import PlayerAttributes
+from src.core.SkillResolver import UseCardSkill, ApplyCenterSkillEffect, ApplyCenterAttribute, CheckCenterSkillCondition
+from src.config.CardLevelConfig import convert_deck_to_simulator_format, fix_windows_console_encoding, DEATH_NOTE
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +23,7 @@ def timing(self, message, *args, **kws):
 logging.Logger.timing = timing
 
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.TIMING,
     format='%(message)s',
     # filename=f"log\log_{int(time.time())}.txt",
     # encoding="utf-8"
@@ -34,7 +35,7 @@ if __name__ == "__main__":
     # 嘗試讀取 YAML 配置中的自定義練度（如果有的話）
     custom_card_levels = None
     try:
-        from config_manager import get_config
+        from src.config.config_manager import get_config
         yaml_config = get_config()
         custom_card_levels = yaml_config.get_card_levels()
         if custom_card_levels:
@@ -70,15 +71,15 @@ if __name__ == "__main__":
     d = Deck(
         db_carddata, db_skill,
         convert_deck_to_simulator_format(
-            [1041513, 1021701, 1021523, 1022701, 1043516, 1043802],
+            [1032532, 1042519, 1052901, 1033902, 1033528, 1051503],
             custom_card_levels
         )
     )
 
     # 歌曲、难度设置
     # 难度 01 / 02 / 03 / 04 对应 Normal / Hard / Expert / Master
-    fixed_music_id = "405105"  # Very! Very! COCO夏っ
-    fixed_difficulty = "02"
+    fixed_music_id = "405123"
+    fixed_difficulty = "04"
     fixed_player_master_level = 50
 
     # 强制替换歌曲C位和颜色
@@ -241,7 +242,7 @@ if __name__ == "__main__":
                     # 连击计数、AP速度更新、回复AP、扣血
                     logger.timing(f"[连击{player.combo}x]\t总分: {player.score}\t时间: {timestamp}\t{event}")
                 else:
-                    player.combo_add("PERFECT")
+                    player.combo_add("PERFECT+")
                     # 连击计数、AP速度更新、回复AP、扣血
                     logger.timing(f"[连击{player.combo}x]\t总分: {player.score}\t时间: {timestamp}\t{event}")
                 # AP足够 且 冷却完毕 时打出技能
@@ -268,9 +269,7 @@ if __name__ == "__main__":
                                         new_afk_mental = min(new_afk_mental, DEATH_NOTE[cid])
                                     else:
                                         new_afk_mental = DEATH_NOTE[cid]
-                        # 如果沒有剩餘的背水卡，血線重置為100%（不需要背水）
-                        if new_afk_mental == 0:
-                            new_afk_mental = 100
+                        # 如果沒有剩餘的背水卡，血線重置為0（禁用背水）
                         afk_mental = new_afk_mental
                         if logger.isEnabledFor(logging.DEBUG):
                             logger.debug(f"  動態血線更新: {afk_mental}%")
@@ -307,9 +306,7 @@ if __name__ == "__main__":
                                         new_afk_mental = min(new_afk_mental, DEATH_NOTE[cid])
                                     else:
                                         new_afk_mental = DEATH_NOTE[cid]
-                        # 如果沒有剩餘的背水卡，血線重置為100%（不需要背水）
-                        if new_afk_mental == 0:
-                            new_afk_mental = 100
+                        # 如果沒有剩餘的背水卡，血線重置為0（禁用背水）
                         afk_mental = new_afk_mental
                         if logger.isEnabledFor(logging.DEBUG):
                             logger.debug(f"  動態血線更新: {afk_mental}%")
@@ -339,7 +336,7 @@ if __name__ == "__main__":
                         player.combo_add("MISS", note_type)
                         logger.timing(f"[连击{player.combo}x]\t总分: {player.score}\t时间: {timestamp}\tMISS: {note_type}")
                 else:
-                    player.combo_add("PERFECT")
+                    player.combo_add("PERFECT+")
                     logger.timing(f"[连击{player.combo}x]\t总分: {player.score}\t时间: {timestamp}\t{event[1:]} (延后)")
 
             case "LiveStart" | "LiveEnd" | "FeverStart":

@@ -14,9 +14,11 @@ import time
 import sys
 import argparse
 from tqdm import tqdm
-from CardLevelConfig import fix_windows_console_encoding
-from Simulator_core import DB_CARDDATA
-from RChart import MusicDB
+
+
+from src.config.CardLevelConfig import fix_windows_console_encoding
+from src.core.Simulator_core import DB_CARDDATA
+from src.core.RChart import MusicDB
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +38,13 @@ CHALLENGE_SONGS = [
 ]
 
 # 每首歌只保留得分排名前 N 名的卡組用於求解
-TOP_N = 56005
+TOP_N = 5000
+
+# 禁止使用的卡牌（這些卡牌將不會出現在任何卡組中）
+FORBIDDEN_CARD = []
+
+# 是否在輸出中顯示卡牌名稱
+SHOWNAME = True
 
 # 角色名稱映射
 CHARACTER_NAMES = {
@@ -110,8 +118,9 @@ def get_song_title(music_id: str, music_db=None) -> str:
 if __name__ == "__main__":
     fix_windows_console_encoding()
 
-    # 嘗試匯入 Cython 模組
+    # 嘗試匯入 Cython 模組（從 cython 目錄）
     try:
+        sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), 'cython')))
         import optimizer_core
         logger.info("✓ Cython module loaded successfully")
     except ImportError as e:
@@ -136,7 +145,7 @@ if __name__ == "__main__":
 
     # 嘗試讀取配置管理器以取得正確的 log 目錄
     try:
-        from config_manager import get_config
+        from src.config.config_manager import get_config
         if args.config:
             config = get_config(args.config)
             logger.info(f"使用命令列指定的配置檔: {args.config}")
@@ -146,9 +155,18 @@ if __name__ == "__main__":
 
         LOG_DIR = config.get_log_dir()
         logger.info(f"log 目錄: {LOG_DIR}")
+
+        # 讀取優化器配置
+        TOP_N = config.get_optimizer_top_n()
+        SHOWNAME = config.get_optimizer_show_names()
+        FORBIDDEN_CARD = config.get_forbidden_cards()
+        logger.info(f"優化器配置: TOP_N={TOP_N}, SHOWNAME={SHOWNAME}, "
+                   f"FORBIDDEN_CARD={FORBIDDEN_CARD if FORBIDDEN_CARD else '[]'}")
     except (ImportError, ValueError, FileNotFoundError) as e:
         LOG_DIR = "log"
         logger.info(f"配置管理器不可用或找不到配置檔 ({e})，使用預設 log 目錄: {LOG_DIR}")
+        logger.info(f"使用預設優化器配置: TOP_N={TOP_N}, SHOWNAME={SHOWNAME}, "
+                   f"FORBIDDEN_CARD={FORBIDDEN_CARD if FORBIDDEN_CARD else '[]'}")
 
     level_files = []
     for music_id, difficulty in CHALLENGE_SONGS:
@@ -171,6 +189,15 @@ if __name__ == "__main__":
             data = json.load(fh)
             total = len(data)
             data.sort(key=lambda x: x["pt"], reverse=True)
+
+            # 過濾禁卡
+            if FORBIDDEN_CARD:
+                original_count = len(data)
+                data = [deck for deck in data if not any(cid in deck["deck_card_ids"] for cid in FORBIDDEN_CARD)]
+                filtered_count = len(data)
+                if original_count != filtered_count:
+                    logger.info(f"  Filtered {original_count - filtered_count} decks containing forbidden cards")
+
             data = data[:TOP_N]
             levels_raw.append(data)
             for deck in data:
@@ -178,6 +205,18 @@ if __name__ == "__main__":
         song_id, difficulty = CHALLENGE_SONGS[i]
         song_title = get_song_title(song_id, music_db)
         logger.info(f"Loaded top {TOP_N} of {total} results for {song_id}_{difficulty} ({song_title})")
+
+    # 檢查是否有歌曲沒有可用卡組（禁卡後可能導致）
+    for i, data in enumerate(levels_raw):
+        if len(data) == 0:
+            song_id, difficulty = CHALLENGE_SONGS[i]
+            song_title = get_song_title(song_id, music_db)
+            logger.error(f"警告: 歌曲 {song_id}_{difficulty} ({song_title}) 沒有可用的卡組")
+            logger.error("可能原因:")
+            logger.error("  1. 禁卡設定過於嚴格，過濾掉所有卡組")
+            logger.error("  2. 尚未執行 MainBatch.py 生成該歌曲的模擬結果")
+            logger.error("  3. 模擬結果檔案損壞或格式錯誤")
+            sys.exit(1)
 
     # 僅針對兩首歌曲求解時，第三首歌填充假資料
     if len(CHALLENGE_SONGS) == 2:
@@ -188,20 +227,25 @@ if __name__ == "__main__":
         }])
 
     # === 根據每關最高 Pt 重新排序（預設按大、小、中順序）===
-    if len(CHALLENGE_SONGS) == 3:
+    # 保存原始歌曲順序，創建工作副本
+    original_songs = list(CHALLENGE_SONGS)
+    working_songs = list(CHALLENGE_SONGS)
+
+    if len(working_songs) == 3:
         best = [deck[0]["pt"] for deck in levels_raw]
         i_max = max(range(3), key=lambda i: best[i])
         i_min = min(range(3), key=lambda i: best[i])
         i_mid = 3 - i_max - i_min
         sorted_indices = [i_max, i_min, i_mid]
-        CHALLENGE_SONGS = [CHALLENGE_SONGS[i] for i in sorted_indices]
+        working_songs = [working_songs[i] for i in sorted_indices]
         levels_raw = [levels_raw[i] for i in sorted_indices]
-        logger.info(f"Challenge songs reordered for optimization: {CHALLENGE_SONGS}")
+        logger.info(f"Challenge songs reordered for optimization: {working_songs}")
 
     # === 建立卡牌ID到bit位的映射 ===
     card_to_bit = {cid: i for i, cid in enumerate(sorted(all_cards))}
     logger.info(f"Loaded {len(card_to_bit)} unique cards")
     assert len(card_to_bit) <= 64, "卡牌種類超過64張時需使用更複雜的bitarray方案"
+    assert len(card_to_bit) >= 6 * len(working_songs), "可用卡牌過少，必定出現重複卡牌"
 
     # === 轉換deck為bitmask ===
     def deck_to_mask(deck):
@@ -251,7 +295,10 @@ if __name__ == "__main__":
         logger.info(f"Pruned combinations: {result['pruned']:,}")
 
         best_pt = result["best_pt"]
-        i1, i2, i3 = result["deck1_idx"], result["deck2_idx"], result["deck3_idx"]
+        if best_pt > 0:
+            i1, i2, i3 = result["deck1_idx"], result["deck2_idx"], result["deck3_idx"]
+        else:
+            i1, i2, i3 = -1, -1, -1
     else:
         # 正常模式：使用優化版本
         result = optimizer_core.optimize_decks(
@@ -263,47 +310,133 @@ if __name__ == "__main__":
         pbar.close()
 
         if result is None:
-            logger.error("No valid combination found!")
-            sys.exit(1)
-
-        best_pt, i1, i2, i3 = result
+            best_pt = -1
+        else:
+            best_pt, i1, i2, i3 = result
 
     search_end = time.time()
     search_time = search_end - search_start
 
-    best_combo = (levels[0][i1], levels[1][i2], levels[2][i3])
+    # 追蹤使用的歌曲數量
+    combo_song_count = 3
+    best_combo = None
 
-    logger.info(f"\n✓ Optimization completed in {search_time:.2f} seconds")
-    logger.info(f"Best total pt found: {best_pt:,}")
+    if best_pt > 0:
+        best_combo = (levels[0][i1], levels[1][i2], levels[2][i3])
+
+    # === 降級處理：如果找不到三首歌的解，嘗試兩首歌的組合 ===
+    if best_pt <= 0 and len(working_songs) == 3:
+        logger.warning("\n" + "=" * 60)
+        logger.warning("無法找到三首歌的有效組合，嘗試降級為兩首歌...")
+        logger.warning("=" * 60 + "\n")
+
+        # 嘗試所有兩兩組合 (0-1, 0-2, 1-2)
+        two_song_combinations = [(0, 1), (0, 2), (1, 2)]
+
+        for idx1, idx2 in two_song_combinations:
+            song1_id, song1_diff = working_songs[idx1]
+            song2_id, song2_diff = working_songs[idx2]
+            song1_title = get_song_title(song1_id, music_db)
+            song2_title = get_song_title(song2_id, music_db)
+
+            logger.info(f"嘗試組合 [{idx1+1}+{idx2+1}]:")
+            logger.info(f"  • Song {idx1+1}: {song1_title} ({song1_id})")
+            logger.info(f"  • Song {idx2+1}: {song2_title} ({song2_id})")
+
+            temp_best_pt = -1
+            temp_best_combo = None
+
+            for deck1 in tqdm(levels[idx1], desc=f"Searching {idx1+1}+{idx2+1}", leave=False):
+                mask1, pt1 = deck1["mask"], deck1["pt"]
+
+                # 剪枝
+                if temp_best_pt > 0 and pt1 + levels[idx2][0]["pt"] <= temp_best_pt:
+                    break
+
+                for deck2 in levels[idx2]:
+                    mask2, pt2 = deck2["mask"], deck2["pt"]
+
+                    # 檢查衝突
+                    if mask1 & mask2:
+                        continue
+
+                    total_pt = pt1 + pt2
+                    if total_pt > temp_best_pt:
+                        temp_best_pt = total_pt
+                        temp_best_combo = (idx1, deck1, idx2, deck2)
+                    else:
+                        break
+
+            # 更新全局最佳
+            if temp_best_pt > best_pt:
+                best_pt = temp_best_pt
+                # 將兩首歌的組合轉換為統一格式，第三首用 None 佔位
+                song1_idx, deck1, song2_idx, deck2 = temp_best_combo
+                if song1_idx == 0 and song2_idx == 1:
+                    best_combo = (deck1, deck2, None)
+                elif song1_idx == 0 and song2_idx == 2:
+                    best_combo = (deck1, None, deck2)
+                else:  # 1-2
+                    best_combo = (None, deck1, deck2)
+                combo_song_count = 2
+                logger.info(f"✓ 找到新的最佳兩首歌組合: {best_pt:,} pt\n")
 
     end_time = time.time()
     total_time = end_time - start_time
 
+    logger.info(f"\n✓ Optimization completed in {search_time:.2f} seconds")
     logger.info(f"Total time (including data loading): {total_time:.2f} seconds")
 
     # === 輸出結果 ===
     output = []
-    output.append("=== Best Combination (Cython Optimized) ===")
+    if combo_song_count == 3:
+        output.append("=== Best Combination (3 Songs - Cython Optimized) ===")
+    else:
+        output.append("=== Best Combination (2 Songs - Downgraded - Cython) ===")
     output.append("")
-    output.append(f"Total Pt: {best_pt:,}")
-    output.append(f"Search Time: {search_time:.2f} seconds")
-    output.append("")
 
-    for i, d in enumerate(best_combo):
-        if i < len(CHALLENGE_SONGS):
-            song_id, difficulty = CHALLENGE_SONGS[i]
-            song_title = get_song_title(song_id, music_db)
-            output.append(f"Song {i+1}: {song_id} (Difficulty: {difficulty}) - {song_title}")
-            output.append(f"  Score: {d['score']:,}")
-            output.append(f"  Pt: {d['pt']:,}  (Rank: #{d['rank']})")
-            output.append(f"  Deck:")
-            output.append(format_deck_with_names(d['deck']))
-            output.append("")
+    if best_pt > 0:
+        output.append(f"Total Pt: {best_pt:,}")
+        output.append(f"Search Time: {search_time:.2f} seconds")
+        output.append("")
 
-    output = "\n".join(output)
-    logger.info(f"\n{output}")
+        for i, d in enumerate(best_combo):
+            # 跳過 None（降級時未使用的歌曲）
+            if d is None:
+                continue
 
-    with open("best_3_song_combo_cython.txt", "w", encoding="utf-8") as f:
-        f.write(output)
-        f.write("\n")
-    logger.info(f"Best 3-song combination saved to best_3_song_combo_cython.txt")
+            if i < len(working_songs):
+                song_id, difficulty = working_songs[i]
+                song_title = get_song_title(song_id, music_db)
+                output.append(f"Song {i+1}: {song_id} (Difficulty: {difficulty}) - {song_title}")
+                output.append(f"  Score: {d['score']:,}")
+                output.append(f"  Pt: {d['pt']:,}  (Rank: #{d['rank']})")
+                output.append(f"  Deck:")
+                if SHOWNAME:
+                    output.append(format_deck_with_names(d['deck']))
+                else:
+                    output.append(f"      {d['deck']}")
+                output.append("")
+
+        output = "\n".join(output)
+        logger.info(f"\n{output}")
+
+        output_filename = "best_3_song_combo_cython.txt" if combo_song_count == 3 else "best_2_song_combo_cython.txt"
+        with open(output_filename, "w", encoding="utf-8") as f:
+            f.write(output)
+            f.write("\n")
+        logger.info(f"Best combination saved to {output_filename}")
+    else:
+        logger.warning("=" * 60)
+        logger.warning("警告: 無法找到有效的卡組組合（已嘗試三首歌和兩首歌的所有組合）")
+        logger.warning("=" * 60)
+        logger.warning("可能的原因:")
+        logger.warning("  1. 禁卡設定過於嚴格，導致可用卡組不足")
+        logger.warning("  2. TOP_N 設定過小，保留的卡組數量不足")
+        logger.warning("  3. 卡組之間存在過多重複卡牌，無法找到不重複的組合")
+        logger.warning("")
+        logger.warning("建議:")
+        logger.warning("  1. 檢查配置中的 optimizer.forbidden_cards 設定")
+        logger.warning(f"  2. 增加 optimizer.top_n 的值 (目前: {TOP_N})")
+        logger.warning("  3. 檢查輸入的歌曲是否都有正確的模擬結果檔案")
+        logger.warning("=" * 60)

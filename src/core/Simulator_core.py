@@ -1,12 +1,12 @@
 import logging
 import os
 # 导入所有 R 模块和 db_load 函数
-from RCardData import db_load
-from RChart import Chart, MusicDB
-from RDeck import Deck
-from RLiveStatus import PlayerAttributes
-from SkillResolver import UseCardSkill, ApplyCenterSkillEffect, ApplyCenterAttribute, CheckCenterSkillCondition
-from CardLevelConfig import DEATH_NOTE
+from .RCardData import db_load
+from .RChart import Chart, MusicDB
+from .RDeck import Deck
+from .RLiveStatus import PlayerAttributes
+from .SkillResolver import UseCardSkill, ApplyCenterSkillEffect, ApplyCenterAttribute, CheckCenterSkillCondition
+from ..config.CardLevelConfig import DEATH_NOTE
 
 # --- Configure logging (for the module itself if needed, or rely on main script's config) ---
 # 注意：子进程会继承父进程的logger配置，但为了独立运行和测试，可以保留或简化这里的logger
@@ -143,9 +143,7 @@ def run_game_simulation(
                         new_afk_mental = min(new_afk_mental, DEATH_NOTE[cid])
                     else:
                         new_afk_mental = DEATH_NOTE[cid]
-        # 如果沒有剩餘的背水卡，血線重置為100%（不需要背水）
-        if new_afk_mental == 0:
-            new_afk_mental = 100
+        # 如果沒有剩餘的背水卡，血線重置為0（禁用背水）
         afk_mental = new_afk_mental
 
     # 提取重复的技能触发逻辑为内联函数
@@ -201,7 +199,7 @@ def run_game_simulation(
                         else:
                             player.combo_add("MISS", event)
                 else:
-                    player.combo_add("PERFECT")
+                    player.combo_add("PERFECT+")
 
                 if player.CDavailable:
                     try_use_skill()
@@ -227,7 +225,7 @@ def run_game_simulation(
                     else:
                         player.combo_add("MISS", note_type)
                 else:
-                    player.combo_add("PERFECT")
+                    player.combo_add("PERFECT+")
 
             case "LiveStart" | "LiveEnd" | "FeverStart":
                 if event == "FeverStart":
