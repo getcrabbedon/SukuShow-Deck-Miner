@@ -207,10 +207,10 @@ class ConfigManager:
         獲取 LGP 模式（是否允許雙卡）
 
         Returns:
-            True: LGP 大賽模式，允許同角色雙卡
-            False: 日常模式，每個角色最多1張卡（預設）
+            True: LGP 大賽模式，允許同角色雙卡（預設）
+            False: 日常模式，每個角色最多1張卡
         """
-        return self.config.get("lgp_mode", False)
+        return self.config.get("lgp_mode", True)
 
     def get_batch_size(self) -> int:
         """獲取批次大小"""
