@@ -588,6 +588,7 @@ if __name__ == "__main__":
         fixed_difficulty = song_config["difficulty"]
         mustcards_all = song_config["mustcards_all"]
         mustcards_any = song_config["mustcards_any"]
+        banned_cards = song_config.get("banned_cards", [])  # 獲取禁卡列表，預設為空
         center_override = song_config["center_override"]
         color_override = song_config["color_override"]
         mastery_level = song_config["mastery_level"]
@@ -777,7 +778,8 @@ if __name__ == "__main__":
             center_char=pre_initialized_chart.music.CenterCharacterId,
             force_dr=force_dr,
             log_path=os.path.join(FINAL_OUTPUT_DIR, f"simulation_results_{fixed_music_id}_{fixed_difficulty}.json"),
-            allow_double_cards=allow_double_cards
+            allow_double_cards=allow_double_cards,
+            banned_cards=banned_cards
         )
         total_decks_to_simulate = decks_generator.total_decks
         logger.info(f"{total_decks_to_simulate} decks to be simulated.")

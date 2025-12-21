@@ -115,7 +115,7 @@ def load_simulated_decks(path: str):
 
 
 class DeckGeneratorWithDoubleCards:
-    def __init__(self, cardpool: list[int], mustcards: list[list[int]], center_char=None, force_dr=False, log_path: str = None, allow_double_cards=True):
+    def __init__(self, cardpool: list[int], mustcards: list[list[int]], center_char=None, force_dr=False, log_path: str = None, allow_double_cards=True, banned_cards: list[int] = None):
         """
         卡组生成器（支持单卡/双卡模式）
 
@@ -126,8 +126,11 @@ class DeckGeneratorWithDoubleCards:
             force_dr: 是否强制包含DR卡
             log_path: 日志路径（用于去重已模拟的卡组）
             allow_double_cards: 是否允许双卡（True=LGP模式，False=日常模式）
+            banned_cards: 禁止使用的卡片列表（这些卡片将从卡池中排除）
         """
-        self.cardpool = cardpool
+        self.banned_cards = set(banned_cards) if banned_cards else set()
+        # 从卡池中排除禁卡
+        self.cardpool = [card_id for card_id in cardpool if card_id not in self.banned_cards]
         self.center_char = center_char
         self.char_id_to_cards = defaultdict(list)
         self.force_dr = force_dr
@@ -138,6 +141,10 @@ class DeckGeneratorWithDoubleCards:
             char_id = card_id // 1000
             self.char_id_to_cards[char_id].append(card_id)
         self.all_available_chars = list(self.char_id_to_cards.keys())
+
+        # 记录被禁用的卡片数量（用于日志）
+        if self.banned_cards:
+            logger.info(f"已排除 {len(self.banned_cards)} 张禁卡: {sorted(self.banned_cards)}")
 
         # 预计算数量
         self.total_decks = self.compute_total_count()
@@ -326,7 +333,7 @@ class DeckGeneratorWithDoubleCards:
         return total
 
 
-def generate_decks_with_double_cards(cardpool: list[int], mustcards: list[list[int]], center_char: int = None, force_dr: bool = False, log_path: str = None, allow_double_cards: bool = True):
+def generate_decks_with_double_cards(cardpool: list[int], mustcards: list[list[int]], center_char: int = None, force_dr: bool = False, log_path: str = None, allow_double_cards: bool = True, banned_cards: list[int] = None):
     """
     外部接口函数，返回卡组生成器（支持单卡/双卡模式）
 
@@ -337,11 +344,12 @@ def generate_decks_with_double_cards(cardpool: list[int], mustcards: list[list[i
         force_dr: 是否强制包含DR卡
         log_path: 日志路径（用于去重已模拟的卡组）
         allow_double_cards: 是否允许双卡（True=LGP模式，False=日常模式）
+        banned_cards: 禁止使用的卡片列表（这些卡片将从卡池中排除）
 
     Returns:
         DeckGeneratorWithDoubleCards 实例
     """
-    return DeckGeneratorWithDoubleCards(cardpool, mustcards, center_char, force_dr, log_path, allow_double_cards)
+    return DeckGeneratorWithDoubleCards(cardpool, mustcards, center_char, force_dr, log_path, allow_double_cards, banned_cards)
 
 
 if __name__ == "__main__":
