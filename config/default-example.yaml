@@ -12,6 +12,7 @@ songs:
   - music_id: "405117"
     difficulty: "02"
     mastery_level: 50
+    friend_card_pool: []       # 該首歌專用的朋友卡池 (覆蓋全局配置)
     mustcards_all: []          # 必須包含的卡牌 (全部)
     mustcards_any: []          # 必須包含的卡牌 (任一)
     banned_cards: []           # 禁止使用的卡牌 (模擬時不會加入卡組)
@@ -47,6 +48,10 @@ debug_deck_cards:
   - 1051506
   - 1021701
   - 1041802
+
+# 全局朋友卡片池 (預設可用的朋友卡片)
+# 朋友卡片固定為滿練度，且不能是 DR 卡或與卡組重複
+friend_card_ids: []
 
 # 卡牌池配置
 card_ids:

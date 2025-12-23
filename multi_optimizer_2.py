@@ -263,7 +263,9 @@ if __name__ == "__main__":
                 "rank": i,
                 "score": deck["score"],
                 "pt": deck["pt"],
-                "deck": deck["deck_card_ids"]
+                "deck": deck["deck_card_ids"],
+                "friend_card": deck.get("friend_card"),
+                "center_card": deck.get("center_card")
             })
         levels.append(decks)
 
@@ -404,8 +406,22 @@ if __name__ == "__main__":
                 output.append(f"  Score: {d['score']:,}")
                 output.append(f"  Pt: {d['pt']:,}  (Rank: #{d['rank']})")
                 output.append(f"  Deck:")
+                
+                # 顯示隊長（如果有）
+                if d.get('center_card'):
+                    cc_id = d['center_card']
+                    cc_char, cc_name = get_card_full_info(cc_id)
+                    output.append(f"    Leader: {cc_id}: {cc_char} - {cc_name}")
+
                 # 使用新的格式化函數顯示卡組
                 output.append(format_deck_with_names(d['deck']))
+                
+                # 顯示朋友卡片（如果有）
+                if d.get('friend_card'):
+                    fc_id = d['friend_card']
+                    fc_char, fc_name = get_card_full_info(fc_id)
+                    output.append(f"  Friend Card: {fc_id}: {fc_char} - {fc_name}")
+                
                 output.append("")
 
         output = "\n".join(output)

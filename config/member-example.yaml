@@ -12,6 +12,7 @@ songs:
   - music_id: "405117"
     difficulty: "02"           # 01=Normal, 02=Hard, 03=Expert, 04=Master
     mastery_level: 50
+    friend_card_pool: []       # 該首歌專用的朋友卡池 (覆蓋全局配置)
     mustcards_all: []
     mustcards_any: []
     banned_cards: []           # 禁止使用的卡牌 (模擬時不會加入卡組)
@@ -23,6 +24,7 @@ songs:
   - music_id: "405118"
     difficulty: "03"           # Expert
     mastery_level: 50
+    friend_card_pool: []       # 該首歌專用的朋友卡池 (覆蓋全局配置)
     mustcards_all: []
     mustcards_any: []
     banned_cards: []
@@ -33,6 +35,7 @@ songs:
   - music_id: "405305"
     difficulty: "04"           # Master
     mastery_level: 50
+    friend_card_pool: []       # 該首歌專用的朋友卡池 (覆蓋全局配置)
     mustcards_all: []
     mustcards_any: []
     banned_cards: []
@@ -42,6 +45,11 @@ songs:
 
 # Debug 卡組 (可選，用於單卡組測試)
 debug_deck_cards: null
+
+# 全局朋友卡片池 (預設可用的朋友卡片)
+friend_card_ids:
+  - 1011501
+  - 1021701
 
 # Alice 的卡池
 card_ids:
