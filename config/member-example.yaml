@@ -15,6 +15,13 @@ songs:
     friend_card_pool: []       # 該首歌專用的朋友卡池 (覆蓋全局配置)
     mustcards_all: []
     mustcards_any: []
+    mustskills: [2, 3, 5, 7, 8]  # 必須包含的技能類型（可選）
+                               # 2=分卡, 3=電, 5=洗牌/DR, 7=分加成, 8=電加成
+                               # 範例: [2, 3, 7, 8] = 分卡+電+分加成+電加成（不強制 DR）
+                               # 留空 [] 則不檢查必要技能
+    secondary_center: []       # 次要中心角色（可選的額外中心卡）
+                               # 用於指定非高稀有度但想作為中心卡的特定卡片
+                               # 範例: [1031533, 1032530, 1033528]
     banned_cards: []           # 禁止使用的卡牌 (模擬時不會加入卡組)
                                # 範例: [1011501, 1052506]  # 禁用特定卡牌
     center_override: null
@@ -27,6 +34,8 @@ songs:
     friend_card_pool: []       # 該首歌專用的朋友卡池 (覆蓋全局配置)
     mustcards_all: []
     mustcards_any: []
+    mustskills: [2, 3, 5, 7, 8]
+    secondary_center: []
     banned_cards: []
     center_override: null
     color_override: null
@@ -38,6 +47,8 @@ songs:
     friend_card_pool: []       # 該首歌專用的朋友卡池 (覆蓋全局配置)
     mustcards_all: []
     mustcards_any: []
+    mustskills: [2, 3, 5, 7, 8]
+    secondary_center: []
     banned_cards: []
     center_override: null
     color_override: null
