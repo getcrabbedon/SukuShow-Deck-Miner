@@ -96,6 +96,12 @@ def convert_all_yaml_files():
 
 
 def db_load(path):
+    # 優先從 GameData 載入（用於打包後的應用程式），找不到才從原路徑載入
+    if path.startswith("Data"):
+        gamedata_path = path.replace("Data", "GameData", 1)
+        if os.path.exists(gamedata_path):
+            path = gamedata_path
+
     with open(path, 'r', encoding='UTF-8') as f:
         return json.load(f)
 
