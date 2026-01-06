@@ -1,5 +1,6 @@
 import logging
 import os
+import sys
 # 导入所有 R 模块和 db_load 函数
 from .RCardData import db_load
 from .RChart import Chart, MusicDB
@@ -27,7 +28,7 @@ except ImportError as e:
 except FileNotFoundError as e:
     logger.error(f"Required database file not found: {e}. Please check your 'Data' directory.")
     # Exit or handle gracefully if critical modules are missing/DBs not found
-    exit(1)  # Exit with an error code
+    sys.exit(1)  # Exit with an error code
 
 
 MISS_TIMING = {

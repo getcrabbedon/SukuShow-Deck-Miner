@@ -75,7 +75,11 @@ class MusicDB:
         self.db: List[Music] = []  # Stores all Music objects
         self._id_map: Dict[int, Music] = {}  # Optimized for ID lookups
 
-        if not os.path.exists(yaml_filepath):
+        # 優先從 GameData 載入（用於打包後的應用程式），找不到才從 Data 載入
+        gamedata_path = os.path.join("GameData", "Musics.yaml")
+        if os.path.exists(gamedata_path):
+            yaml_filepath = gamedata_path
+        elif not os.path.exists(yaml_filepath):
             raise FileNotFoundError(f"Music database file not found at: {yaml_filepath}")
 
         with open(yaml_filepath, encoding="UTF-8") as f:
