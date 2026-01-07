@@ -152,15 +152,16 @@ if __name__ == "__main__":
                     song_banned_cards[(music_id, difficulty)] = banned_cards
             logger.info(f"使用優化器專屬歌曲配置: {len(optimizer_songs)} 首歌")
         else:
-            # 使用主 songs 配置讀取每首歌的禁卡
+            # 使用主 songs 配置讀取歌曲列表和禁卡
             songs_config = config.get_songs_config()
+            CHALLENGE_SONGS = [(s["music_id"], s["difficulty"]) for s in songs_config]
             for song in songs_config:
                 music_id = song.get("music_id")
                 difficulty = song.get("difficulty")
                 banned_cards = song.get("banned_cards", [])
                 if music_id and difficulty:
                     song_banned_cards[(music_id, difficulty)] = banned_cards
-            logger.info(f"使用主 songs 配置中的禁卡設定")
+            logger.info(f"使用主 songs 配置: {len(songs_config)} 首歌")
 
         logger.info(f"優化器配置: TOP_N={TOP_N}, SHOWNAME={SHOWNAME}, "
                    f"FORBIDDEN_CARD(全局)={FORBIDDEN_CARD if FORBIDDEN_CARD else '[]'}")
