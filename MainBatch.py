@@ -134,43 +134,19 @@ def task_generator_func(decks_generator, chart, player_level, leader_designation
     一个生成器函数，从 decks_generator 获取每个卡组，
     并将其转换为 run_game_simulation 所需的任务格式。
 
-    对于有多张C位角色卡的卡组，生成所有可能的C位选择。
+    DeckGen2 生成器現在 yield (deck, center_card_index, friend_card)
 
     Args:
         custom_card_levels: 自定義卡牌練度 (從配置檔案讀取)
     """
     task_index = 0
-    center_char_id = chart.music.CenterCharacterId
 
-    for deck_card_ids_list in decks_generator:
-        # 找出所有C位角色的卡片索引
-        center_card_indices = []
-        # New solution: if a vaild leader is entered via the command line, the decks would already have the leader.
-        # We only need to find the index of the leader card now.
-        if leader_designation != 0 :
-            for idx, card_id in enumerate(deck_card_ids_list):
-                if int(leader_designation) == card_id: center_card_indices.append(idx)
-        # Old solution OR if no leader is supplied
-        else:
-            for idx, card_id in enumerate(deck_card_ids_list):
-                char_id = card_id // 1000
-                if char_id == center_char_id:
-                    center_card_indices.append(idx)
-
-        # 如果有多张C位角色的卡，为每张生成一个任务
-        # 如果只有一张或没有，生成一个任务（索引为-1表示自动选择）
-        if not center_card_indices:
-            # 没有C位角色卡（理论上不应该发生）
-            center_indices_to_test = [-1]
-        else:
-            # 测试每张C位角色卡作为C位
-            center_indices_to_test = center_card_indices
-
-        for center_index in center_indices_to_test:
-            sim_deck_format = convert_deck_to_simulator_format(deck_card_ids_list, custom_card_levels)
-            # 传递C位卡索引给模拟器
-            yield (sim_deck_format, chart, player_level, task_index, deck_card_ids_list, center_index)
-            task_index += 1
+    for deck_card_ids_list, center_card_index, friend_card in decks_generator:
+        # DeckGen2 已經處理了 C 位卡索引和助戰卡，直接使用
+        sim_deck_format = convert_deck_to_simulator_format(deck_card_ids_list, custom_card_levels)
+        # 傳遞給模擬器：(sim_deck_format, chart, player_level, task_index, deck_card_ids, center_index, friendcard_id)
+        yield (sim_deck_format, chart, player_level, task_index, deck_card_ids_list, center_card_index, friend_card)
+        task_index += 1
 
 
 def parse_arguments(unified_config):
@@ -342,24 +318,28 @@ def run_debug_mode(deck_cards, center_index, config, custom_card_levels=None):
         # 轉換牌組格式
         sim_deck_format = convert_deck_to_simulator_format(deck_cards, custom_card_levels)
 
-        # 調用 run_game_simulation
+        # 調用 run_game_simulation (debug 模式暫不支援助戰卡，傳入 None)
         result = run_game_simulation(
-            (sim_deck_format, pre_initialized_chart, fixed_player_master_level, 0, deck_cards, center_idx)
+            (sim_deck_format, pre_initialized_chart, fixed_player_master_level, 0, deck_cards, center_idx, None)
         )
 
         current_score = result['final_score']
         cards_played_log = result["cards_played_log"]
         center_card = result['center_card']
+        friend_card = result.get('friend_card')
 
         logger.info(f"\n--- 模擬結束 ---")
         logger.info(f"分數: {current_score:,}")
         logger.info(f"C位卡片: {center_card}")
+        if friend_card:
+            logger.info(f"助戰卡: {friend_card}")
         logger.info(f"打出記錄: {cards_played_log}")
         logger.info(f"打出次數: {len(cards_played_log)}")
 
         results.append({
             "center_index": center_idx,
             "center_card": center_card,
+            "friend_card": friend_card,
             "score": current_score,
             "card_log": cards_played_log
         })
@@ -822,10 +802,11 @@ if __name__ == "__main__":
                 deck_card_ids = result['deck_card_ids']
                 center_card = result['center_card']
 
-                # 记录当前卡组的得分、卡牌、C位卡牌，添加到结果列表中
+                # 记录当前卡组的得分、卡牌、C位卡牌、助戰卡，添加到结果列表中
                 current_batch_results.append({
                     "deck_card_ids": deck_card_ids,  # 使用卡牌ID列表
                     "center_card": center_card,
+                    "friend_card": result.get('friend_card'),  # 助戰卡 (可能為 None)
                     "score": current_score,
                 })
                 results_processed_count += 1
