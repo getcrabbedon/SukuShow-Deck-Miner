@@ -167,9 +167,15 @@ def parse_arguments(unified_config):
     parser.add_argument('--config', type=str, metavar='CONFIG_FILE',
                        help='YAML配置檔案路徑（例如：config/member-alice.yaml）')
     parser.add_argument('--debug', nargs='*', type=int, metavar='CARD_ID',
-                       help='Debug模式：可選指定6張卡牌ID（按順序），不指定則使用配置中的牌組')
+                       help='Debug模式：可選指定6張卡牌ID（按順序）+1張助戰卡ID，不指定則使用配置中的牌組')
     parser.add_argument('--center-index', type=int, default=-1,
                        help='Debug模式：指定C位卡在牌組中的索引（0-5），-1表示測試所有C位選擇（預設：-1）')
+    parser.add_argument('--music', type=str,
+                       help='Debug模式：指定歌曲ID（預設使用配置中的第一首歌）')
+    parser.add_argument('--difficulty', type=str, choices=['01', '02', '03', '04'],
+                       help='Debug模式：指定難度（01=Normal, 02=Hard, 03=Expert, 04=Master）')
+    parser.add_argument('--mastery', type=int, metavar='LEVEL',
+                       help='Debug模式：指定熟練度（1-50）')
 
     args = parser.parse_args()
 
@@ -185,6 +191,7 @@ def parse_arguments(unified_config):
     # 如果是 Debug 模式，返回特殊標記
     if args.debug is not None:
         # 如果指定了卡牌，使用指定的；否則使用配置中的
+        friend_card_id = None
         if len(args.debug) == 0:
             # 沒有指定卡牌，使用配置中的
             deck_cards = unified_config["debug_deck_cards"]
@@ -193,10 +200,32 @@ def parse_arguments(unified_config):
             # 指定了6張卡牌
             deck_cards = args.debug
             logger.info("使用命令列指定的牌組")
+        elif len(args.debug) == 7:
+            # 指定了6張卡牌 + 1張助戰卡
+            deck_cards = args.debug[:6]
+            friend_card_id = args.debug[6]
+            logger.info("使用命令列指定的牌組 + 助戰卡")
         else:
-            logger.error("Debug模式錯誤：必須指定6張卡牌ID或不指定任何卡牌")
+            logger.error("Debug模式錯誤：必須指定6張卡牌ID（可選+1張助戰卡）或不指定任何卡牌")
             sys.exit(1)
-        return {"debug_mode": True, "deck_cards": deck_cards, "center_index": args.center_index}
+
+        # 建立 debug 模式的配置
+        debug_config = {
+            "debug_mode": True,
+            "deck_cards": deck_cards,
+            "center_index": args.center_index,
+            "friend_card": friend_card_id
+        }
+
+        # 如果指定了歌曲參數，加入配置
+        if args.music:
+            debug_config["music_id"] = args.music
+        if args.difficulty:
+            debug_config["difficulty"] = args.difficulty
+        if args.mastery:
+            debug_config["mastery_level"] = args.mastery
+
+        return debug_config
 
     # 如果沒有命令列參數，使用預設配置
     if not args.songs:
@@ -232,7 +261,7 @@ def parse_arguments(unified_config):
     return songs_config
 
 
-def run_debug_mode(deck_cards, center_index, config, custom_card_levels=None):
+def run_debug_mode(deck_cards, center_index, config, custom_card_levels=None, friend_card=None, debug_song_config=None):
     """
     Debug模式：計算單一固定牌組的分數
 
@@ -241,6 +270,8 @@ def run_debug_mode(deck_cards, center_index, config, custom_card_levels=None):
         center_index: 指定使用第幾張C位卡（-1表示測試所有）
         config: 統一配置字典
         custom_card_levels: 自定義卡牌練度 (從配置檔案讀取)
+        friend_card: 助戰卡ID（可選）
+        debug_song_config: Debug 模式歌曲配置（可選，覆寫預設值）
     """
     logger.info("="*60)
     logger.info("進入 Debug 模式：計算單一牌組分數")
@@ -248,13 +279,15 @@ def run_debug_mode(deck_cards, center_index, config, custom_card_levels=None):
 
     # 從統一配置區讀取歌曲配置（使用第一首歌的配置）
     first_song = config["songs"][0]
-    fixed_music_id = first_song["music_id"]
-    fixed_difficulty = first_song["difficulty"]
-    fixed_player_master_level = first_song["mastery_level"]
-    center_override = first_song["center_override"]
-    color_override = first_song["color_override"]
+    fixed_music_id = debug_song_config.get("music_id") if debug_song_config and "music_id" in debug_song_config else first_song["music_id"]
+    fixed_difficulty = debug_song_config.get("difficulty") if debug_song_config and "difficulty" in debug_song_config else first_song["difficulty"]
+    fixed_player_master_level = debug_song_config.get("mastery_level") if debug_song_config and "mastery_level" in debug_song_config else first_song["mastery_level"]
+    center_override = first_song.get("center_override")
+    color_override = first_song.get("color_override")
 
     logger.info(f"\n牌組卡片ID: {deck_cards}")
+    if friend_card:
+        logger.info(f"助戰卡ID: {friend_card}")
     logger.info(f"\n歌曲配置:")
     logger.info(f"  歌曲ID: {fixed_music_id}")
     logger.info(f"  難度: {fixed_difficulty}")
@@ -318,9 +351,9 @@ def run_debug_mode(deck_cards, center_index, config, custom_card_levels=None):
         # 轉換牌組格式
         sim_deck_format = convert_deck_to_simulator_format(deck_cards, custom_card_levels)
 
-        # 調用 run_game_simulation (debug 模式暫不支援助戰卡，傳入 None)
+        # 調用 run_game_simulation
         result = run_game_simulation(
-            (sim_deck_format, pre_initialized_chart, fixed_player_master_level, 0, deck_cards, center_idx, None)
+            (sim_deck_format, pre_initialized_chart, fixed_player_master_level, 0, deck_cards, center_idx, friend_card)
         )
 
         current_score = result['final_score']
@@ -533,7 +566,23 @@ if __name__ == "__main__":
 
     # 如果是 Debug 模式，直接運行並退出
     if isinstance(SONGS_CONFIG, dict) and SONGS_CONFIG.get("debug_mode"):
-        run_debug_mode(SONGS_CONFIG["deck_cards"], SONGS_CONFIG["center_index"], UNIFIED_CONFIG, custom_card_levels)
+        # 建立歌曲配置字典（只包含有值的參數）
+        debug_song_config = {}
+        if "music_id" in SONGS_CONFIG:
+            debug_song_config["music_id"] = SONGS_CONFIG["music_id"]
+        if "difficulty" in SONGS_CONFIG:
+            debug_song_config["difficulty"] = SONGS_CONFIG["difficulty"]
+        if "mastery_level" in SONGS_CONFIG:
+            debug_song_config["mastery_level"] = SONGS_CONFIG["mastery_level"]
+
+        run_debug_mode(
+            SONGS_CONFIG["deck_cards"],
+            SONGS_CONFIG["center_index"],
+            UNIFIED_CONFIG,
+            custom_card_levels,
+            SONGS_CONFIG.get("friend_card"),
+            debug_song_config if debug_song_config else None
+        )
         end_time = time.time()
         logger.info(f"\n總耗時: {end_time - start_time:.2f} 秒")
         sys.exit(0)
