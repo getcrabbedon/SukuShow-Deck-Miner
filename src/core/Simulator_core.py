@@ -191,8 +191,8 @@ def run_game_simulation(
                     will_die = (player.mental.current_hp <= miss_damage)
 
                     if will_die:
-                        # 如果 MISS 會導致遊戲結束，改為 PERFECT
-                        player.combo_add("PERFECT")
+                        # 如果 MISS 會導致遊戲結束，改為 PERFECT+
+                        player.combo_add("PERFECT+")
                     else:
                         # 需要仰卧起坐时，将 MISS 时机按判定窗口延后以提高精度
                         if flag_hanabi_ginko:
@@ -221,8 +221,8 @@ def run_game_simulation(
                     will_die = (player.mental.current_hp <= miss_damage)
 
                     if will_die:
-                        # 如果 MISS 會導致遊戲結束，改為 PERFECT
-                        player.combo_add("PERFECT")
+                        # 如果 MISS 會導致遊戲結束，改為 PERFECT+
+                        player.combo_add("PERFECT+")
                     else:
                         player.combo_add("MISS", note_type)
                 else:
