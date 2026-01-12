@@ -115,7 +115,7 @@ def load_simulated_decks(path: str):
 
 
 class DeckGeneratorWithDoubleCards:
-    def __init__(self, cardpool: list[int], mustcards: list[list[int]], center_char=None, force_dr=False, log_path: str = None, allow_double_cards=True, banned_cards: list[int] = None):
+    def __init__(self, cardpool: list[int], mustcards: list[list[int]], center_char=None, force_dr=False, log_path: str = None, allow_double_cards=True, banned_cards: list[int] = None, friend_card: list[int] = None):
         """
         卡组生成器（支持单卡/双卡模式）
 
@@ -127,6 +127,7 @@ class DeckGeneratorWithDoubleCards:
             log_path: 日志路径（用于去重已模拟的卡组）
             allow_double_cards: 是否允许双卡（True=LGP模式，False=日常模式）
             banned_cards: 禁止使用的卡片列表（这些卡片将从卡池中排除）
+            friend_card: 助戰卡列表（可選，用於遍歷多個助戰卡）
         """
         self.banned_cards = set(banned_cards) if banned_cards else set()
         # 从卡池中排除禁卡
@@ -136,6 +137,7 @@ class DeckGeneratorWithDoubleCards:
         self.force_dr = force_dr
         self.mustcards = mustcards
         self.allow_double_cards = allow_double_cards
+        self.friend_card = friend_card if friend_card else []
         self.simulated_decks = load_simulated_decks(log_path)
         for card_id in self.cardpool:
             char_id = card_id // 1000
@@ -286,8 +288,29 @@ class DeckGeneratorWithDoubleCards:
             if has_card_conflict(set(deck)):
                 continue
             if self.check_skill_tags(count_skill_tags(deck), self.force_dr):
+                # 找出所有 C 位角色的卡片（用於指定隊長）
+                center_cards = []
+                if self.center_char:
+                    for i, card_id in enumerate(deck):
+                        char_id = card_id // 1000
+                        if char_id == self.center_char:
+                            center_cards.append(i)
+
+                # 如果沒有 C 位卡，使用 -1 表示自動選擇
+                if not center_cards:
+                    center_cards = [-1]
+
                 # 使用优化的排列生成器，避免生成无效排列
-                yield from self._generate_valid_permutations(deck)
+                for perm in self._generate_valid_permutations(deck):
+                    # 為每個 C 位卡生成一個卡組
+                    for center_card_index in center_cards:
+                        # 助戰卡迴圈
+                        if self.friend_card:
+                            for friend in self.friend_card:
+                                yield (list(perm), center_card_index, friend)
+                        else:
+                            # 沒有助戰卡時，friend 為 None
+                            yield (list(perm), center_card_index, None)
 
     def _count_decks_for_distribution(self, char_distribution):
         char_counts = {char_id: char_distribution.count(char_id) for char_id in set(char_distribution)}
@@ -318,7 +341,11 @@ class DeckGeneratorWithDoubleCards:
                 continue
             if self.check_skill_tags(count_skill_tags(deck), self.force_dr):
                 # 使用优化的计数方法
-                total += self._count_valid_permutations(deck)
+                count = self._count_valid_permutations(deck)
+                # 乘以助戰卡數量（如果有的話）
+                if self.friend_card:
+                    count *= len(self.friend_card)
+                total += count
         return total
 
     def compute_total_count(self):
@@ -333,7 +360,7 @@ class DeckGeneratorWithDoubleCards:
         return total
 
 
-def generate_decks_with_double_cards(cardpool: list[int], mustcards: list[list[int]], center_char: int = None, force_dr: bool = False, log_path: str = None, allow_double_cards: bool = True, banned_cards: list[int] = None):
+def generate_decks_with_double_cards(cardpool: list[int], mustcards: list[list[int]], center_char: int = None, force_dr: bool = False, log_path: str = None, allow_double_cards: bool = True, banned_cards: list[int] = None, friend_card: list[int] = None):
     """
     外部接口函数，返回卡组生成器（支持单卡/双卡模式）
 
@@ -345,11 +372,12 @@ def generate_decks_with_double_cards(cardpool: list[int], mustcards: list[list[i
         log_path: 日志路径（用于去重已模拟的卡组）
         allow_double_cards: 是否允许双卡（True=LGP模式，False=日常模式）
         banned_cards: 禁止使用的卡片列表（这些卡片将从卡池中排除）
+        friend_card: 助戰卡列表（可選，用於遍歷多個助戰卡）
 
     Returns:
         DeckGeneratorWithDoubleCards 实例
     """
-    return DeckGeneratorWithDoubleCards(cardpool, mustcards, center_char, force_dr, log_path, allow_double_cards, banned_cards)
+    return DeckGeneratorWithDoubleCards(cardpool, mustcards, center_char, force_dr, log_path, allow_double_cards, banned_cards, friend_card)
 
 
 if __name__ == "__main__":
