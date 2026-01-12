@@ -1,6 +1,7 @@
 import logging
 from enum import Enum
 from functools import lru_cache
+from math import ceil
 from .RLiveStatus import *
 from .RDeck import Card
 
@@ -256,7 +257,6 @@ def ApplyCenterAttribute(player_attrs: PlayerAttributes, effect_id: int, target:
             for card in target_cards:
                 card.mental = ceil(card.mental * multiplier)
             if friend_card:
-                from math import ceil
                 friend_card.mental = ceil(friend_card.mental * multiplier)
             if logger.isEnabledFor(logging.DEBUG):
                 action = "增加" if change_direction == 0 else "减少"
