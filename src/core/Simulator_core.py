@@ -41,7 +41,7 @@ MISS_TIMING = {
 
 
 def run_game_simulation(
-    task_args: tuple  # This will be (deck_card_data, chart_obj, player_master_level, original_deck_index)
+    task_args: tuple  # This will be (deck_card_data, chart_obj, player_master_level, original_deck_index, deck_card_ids, center_card_index, friendcard_id)
 ) -> dict:
     """
     Runs a single game simulation and includes the original deck index in the result.
@@ -53,6 +53,10 @@ def run_game_simulation(
             Example: [(1011501, [120, 1, 12]), ...]
         chart_obj (Chart): The music chart to simulate (e.g., Chart(MUSIC_DB, "103105", "02").
         player_master_level (int): The player's master level. 1 ~ 50.
+        original_deck_index (int): The index of this deck in the batch.
+        deck_card_ids (list[int]): List of card IDs in the deck.
+        center_card_index (int): Index of the center card (-1 for auto selection).
+        friendcard_id (int): Friend card ID (None if no friend card).
 
     Returns:
         dict: A dictionary containing key simulation results (e.g., final score, card log).
@@ -60,12 +64,19 @@ def run_game_simulation(
     """
     # NOTE: DBs (MUSIC_DB, DB_CARDDATA, DB_SKILL) are now global to this module
     # and inherited by child processes (copy-on-write).
-    deck_card_data, chart_obj, player_master_level, original_deck_index, deck_card_ids, center_card_index = task_args
+    deck_card_data, chart_obj, player_master_level, original_deck_index, deck_card_ids, center_card_index, friendcard_id = task_args
 
     d = Deck(DB_CARDDATA, DB_SKILL, deck_card_data)
     c: Chart = chart_obj
     player = PlayerAttributes(masterlv=player_master_level)
     player.set_deck(d)
+
+    # 處理助戰卡
+    from .RDeck import Card
+    centerfriend = False
+    if friendcard_id:
+        d.friend = Card.get_friend(DB_CARDDATA, DB_SKILL, friendcard_id)
+        centerfriend = d.friend.characters_id == c.music.CenterCharacterId
 
     centercard = None
     afk_mental = 0
@@ -111,7 +122,8 @@ def run_game_simulation(
             "cards_played_log": d.card_log,
             "original_deck_index": original_deck_index,
             "deck_card_ids": deck_card_ids,
-            "center_card": int(centercard.card_id) if centercard is not None else None
+            "center_card": int(centercard.card_id) if centercard is not None else None,
+            "friend_card": friendcard_id
         }
 
     player.basescore_calc(c.AllNoteSize)
@@ -235,6 +247,11 @@ def run_game_simulation(
                     for condition, effect in centercard.get_center_skill():
                         if CheckCenterSkillCondition(player, condition, centercard, event):
                             ApplyCenterSkillEffect(player, effect)
+                # 助戰卡 C 位技能
+                if centerfriend:
+                    for condition, effect in d.friend.get_center_skill():
+                        if CheckCenterSkillCondition(player, condition, d.friend, event):
+                            ApplyCenterSkillEffect(player, effect)
                 if event == "LiveEnd":
                     break
 
@@ -248,5 +265,6 @@ def run_game_simulation(
         "cards_played_log": d.card_log,
         "original_deck_index": original_deck_index,
         "deck_card_ids": deck_card_ids,
-        "center_card": int(centercard.card_id)
+        "center_card": int(centercard.card_id),
+        "friend_card": friendcard_id
     }
