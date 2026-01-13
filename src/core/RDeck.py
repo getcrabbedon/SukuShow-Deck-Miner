@@ -77,19 +77,10 @@ def _get_evolution(rarity: Rarity, lv: int) -> int:
     return stages[-1][1]
 
 
-def cardobj_cache(cls):
-    cache: dict[int, Card] = {}
-
-    def wrapper(*args, **kwargs):
-        key = args[2]  # 仅检查卡牌id
-        if key not in cache:
-            cache[key] = cls(*args, **kwargs)
-        return copy(cache[key])
-    return wrapper
-
-
-@cardobj_cache
 class Card():
+    _cardobj_cache = {}
+    _friend_cache = {}
+
     def __init__(self, db_card, db_skill, series_id, lv_list=None):
         if lv_list == None:
             lv_list = [140, 14, 14]
@@ -110,6 +101,36 @@ class Card():
         self.cost: int = self.skill_unit.cost
         self.active_count: int = 0
         self.is_except: bool = False
+
+    @classmethod
+    def get_instance(cls, db_card, db_skill, series_id, lv_list=None):
+        """獲取卡牌實例（使用快取）"""
+        key = series_id
+        if key not in cls._cardobj_cache:
+            # 只有第一次會執行繁瑣的資料庫查找和計算
+            cls._cardobj_cache[key] = cls(db_card, db_skill, series_id, lv_list)
+
+        # 使用 copy 返回快取的副本
+        return copy(cls._cardobj_cache[key])
+
+    @classmethod
+    def get_friend(cls, db_card, db_skill, series_id, lv_list=None):
+        """獲取助戰卡實例（滿練度，使用獨立快取）"""
+        key = series_id
+        if key not in cls._friend_cache:
+            # 助戰卡固定滿練度
+            if lv_list is None:
+                lv_list = [140, 14, 14]
+            cls._friend_cache[key] = cls(db_card, db_skill, series_id, lv_list)
+
+        # 使用 copy 返回快取的副本
+        return copy(cls._friend_cache[key])
+
+    def __copy__(self):
+        cls = self.__class__
+        new = cls.__new__(cls)
+        new.__dict__ = self.__dict__.copy()
+        return new
 
     def __str__(self) -> str:
         return (
@@ -154,8 +175,9 @@ class Deck():
         self.queue: deque[Card] = deque()
         self.appeal: int = 0
         self.card_log: list[str] = []
+        self.friend: Card = None  # 助戰卡（需要外部設定）
         for card in card_info:
-            self.cards.append(Card(db_card, db_skill, card[0], card[1]))
+            self.cards.append(Card.get_instance(db_card, db_skill, card[0], card[1]))
         self.reset()
 
     def reset(self):
@@ -184,6 +206,10 @@ class Deck():
             appeals = [card.smile, card.pure, card.cool]
             appeals[music_type - 1] *= 10
             result += sum(appeals)
+        if self.friend:
+            appeals = [self.friend.smile, self.friend.pure, self.friend.cool]
+            appeals[music_type - 1] *= 10
+            result += sum(appeals)
         result = ceil(result / 10)
         self.appeal = result
         return result
@@ -192,6 +218,8 @@ class Deck():
         result = 0
         for card in self.cards:
             result += card.mental
+        if self.friend:
+            result += self.friend.mental
         return result
 
     def used_all_skill_calc(self):

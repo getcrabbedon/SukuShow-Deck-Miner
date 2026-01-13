@@ -1,5 +1,6 @@
 import logging
 import os
+import sys
 # 导入所有 R 模块和 db_load 函数
 from .RCardData import db_load
 from .RChart import Chart, MusicDB
@@ -27,7 +28,7 @@ except ImportError as e:
 except FileNotFoundError as e:
     logger.error(f"Required database file not found: {e}. Please check your 'Data' directory.")
     # Exit or handle gracefully if critical modules are missing/DBs not found
-    exit(1)  # Exit with an error code
+    sys.exit(1)  # Exit with an error code
 
 
 MISS_TIMING = {
@@ -40,7 +41,7 @@ MISS_TIMING = {
 
 
 def run_game_simulation(
-    task_args: tuple  # This will be (deck_card_data, chart_obj, player_master_level, original_deck_index)
+    task_args: tuple  # This will be (deck_card_data, chart_obj, player_master_level, original_deck_index, deck_card_ids, center_card_index, friendcard_id)
 ) -> dict:
     """
     Runs a single game simulation and includes the original deck index in the result.
@@ -52,6 +53,10 @@ def run_game_simulation(
             Example: [(1011501, [120, 1, 12]), ...]
         chart_obj (Chart): The music chart to simulate (e.g., Chart(MUSIC_DB, "103105", "02").
         player_master_level (int): The player's master level. 1 ~ 50.
+        original_deck_index (int): The index of this deck in the batch.
+        deck_card_ids (list[int]): List of card IDs in the deck.
+        center_card_index (int): Index of the center card (-1 for auto selection).
+        friendcard_id (int): Friend card ID (None if no friend card).
 
     Returns:
         dict: A dictionary containing key simulation results (e.g., final score, card log).
@@ -59,12 +64,19 @@ def run_game_simulation(
     """
     # NOTE: DBs (MUSIC_DB, DB_CARDDATA, DB_SKILL) are now global to this module
     # and inherited by child processes (copy-on-write).
-    deck_card_data, chart_obj, player_master_level, original_deck_index, deck_card_ids, center_card_index = task_args
+    deck_card_data, chart_obj, player_master_level, original_deck_index, deck_card_ids, center_card_index, friendcard_id = task_args
 
     d = Deck(DB_CARDDATA, DB_SKILL, deck_card_data)
     c: Chart = chart_obj
     player = PlayerAttributes(masterlv=player_master_level)
     player.set_deck(d)
+
+    # 處理助戰卡
+    from .RDeck import Card
+    centerfriend = False
+    if friendcard_id:
+        d.friend = Card.get_friend(DB_CARDDATA, DB_SKILL, friendcard_id)
+        centerfriend = d.friend.characters_id == c.music.CenterCharacterId
 
     centercard = None
     afk_mental = 0
@@ -110,7 +122,8 @@ def run_game_simulation(
             "cards_played_log": d.card_log,
             "original_deck_index": original_deck_index,
             "deck_card_ids": deck_card_ids,
-            "center_card": int(centercard.card_id) if centercard is not None else None
+            "center_card": int(centercard.card_id) if centercard is not None else None,
+            "friend_card": friendcard_id
         }
 
     player.basescore_calc(c.AllNoteSize)
@@ -190,8 +203,8 @@ def run_game_simulation(
                     will_die = (player.mental.current_hp <= miss_damage)
 
                     if will_die:
-                        # 如果 MISS 會導致遊戲結束，改為 PERFECT
-                        player.combo_add("PERFECT")
+                        # 如果 MISS 會導致遊戲結束，改為 PERFECT+
+                        player.combo_add("PERFECT+")
                     else:
                         # 需要仰卧起坐时，将 MISS 时机按判定窗口延后以提高精度
                         if flag_hanabi_ginko:
@@ -220,8 +233,8 @@ def run_game_simulation(
                     will_die = (player.mental.current_hp <= miss_damage)
 
                     if will_die:
-                        # 如果 MISS 會導致遊戲結束，改為 PERFECT
-                        player.combo_add("PERFECT")
+                        # 如果 MISS 會導致遊戲結束，改為 PERFECT+
+                        player.combo_add("PERFECT+")
                     else:
                         player.combo_add("MISS", note_type)
                 else:
@@ -233,6 +246,11 @@ def run_game_simulation(
                 if centercard is not None:
                     for condition, effect in centercard.get_center_skill():
                         if CheckCenterSkillCondition(player, condition, centercard, event):
+                            ApplyCenterSkillEffect(player, effect)
+                # 助戰卡 C 位技能
+                if centerfriend:
+                    for condition, effect in d.friend.get_center_skill():
+                        if CheckCenterSkillCondition(player, condition, d.friend, event):
                             ApplyCenterSkillEffect(player, effect)
                 if event == "LiveEnd":
                     break
@@ -247,5 +265,6 @@ def run_game_simulation(
         "cards_played_log": d.card_log,
         "original_deck_index": original_deck_index,
         "deck_card_ids": deck_card_ids,
-        "center_card": int(centercard.card_id)
+        "center_card": int(centercard.card_id),
+        "friend_card": friendcard_id
     }

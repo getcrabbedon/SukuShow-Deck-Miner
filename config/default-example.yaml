@@ -12,8 +12,10 @@ songs:
   - music_id: "405117"
     difficulty: "02"
     mastery_level: 50
+    friend_card_pool: []       # 該首歌專用的朋友卡池 (覆蓋全局配置)
     mustcards_all: []          # 必須包含的卡牌 (全部)
     mustcards_any: []          # 必須包含的卡牌 (任一)
+    banned_cards: []           # 禁止使用的卡牌 (模擬時不會加入卡組)
     center_override: null      # 覆蓋 Center 位置 (null 表示不覆蓋)
     color_override: null       # 覆蓋顏色 (null 表示不覆蓋)
     leader_designation: "0"    # 隊長指定 (0-9 或字串 card_id)
@@ -23,6 +25,7 @@ songs:
     mastery_level: 50
     mustcards_all: []
     mustcards_any: []
+    banned_cards: []
     center_override: null
     color_override: null
     leader_designation: "0"
@@ -32,6 +35,7 @@ songs:
     mastery_level: 50
     mustcards_all: []
     mustcards_any: []
+    banned_cards: []
     center_override: null
     color_override: null
     leader_designation: "0"
@@ -44,6 +48,10 @@ debug_deck_cards:
   - 1051506
   - 1021701
   - 1041802
+
+# 全局朋友卡片池 (預設可用的朋友卡片)
+# 朋友卡片固定為滿練度，且不能是 DR 卡或與卡組重複
+friend_card_ids: []
 
 # 卡牌池配置
 card_ids:
@@ -132,5 +140,20 @@ cache:
 optimizer:
   top_n: 50000                 # 每首歌保留得分排名前 N 名的卡組
   show_card_names: true        # 在輸出中顯示卡牌名稱
-  forbidden_cards: []          # 禁止使用的卡牌 ID 列表 (三面均生效)
+  forbidden_cards: []          # 全局禁止使用的卡牌 ID 列表 (三面均生效)
                                # 範例: [1011501, 1052506]  # 禁用特定卡牌
+
+  # 多曲優化器歌曲配置 (可選，優先級高於上方的 songs 配置)
+  # 如果配置了此區塊，優化器將使用這裡的歌曲列表和禁卡設定
+  # songs:
+  #   - music_id: "405117"
+  #     difficulty: "02"
+  #     banned_cards: []       # 該首歌的禁卡 (與全局禁卡合併使用)
+  #
+  #   - music_id: "405118"
+  #     difficulty: "02"
+  #     banned_cards: []
+  #
+  #   - music_id: "405305"
+  #     difficulty: "02"
+  #     banned_cards: []

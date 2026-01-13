@@ -268,6 +268,19 @@ class ConfigManager:
         """
         return self.get_optimizer_config()["show_card_names"]
 
+    def get_optimizer_songs(self) -> List[Dict[str, Any]]:
+        """
+        獲取優化器的歌曲配置列表
+
+        如果 optimizer.songs 存在，使用該配置
+        否則返回空列表，讓優化器使用主 songs 配置
+
+        Returns:
+            歌曲配置列表，每個元素包含 music_id, difficulty, banned_cards 等
+        """
+        optimizer_config = self.get_optimizer_config()
+        return optimizer_config.get("songs", [])
+
     def print_summary(self):
         """列印配置摘要"""
         logger.info("=" * 60)
