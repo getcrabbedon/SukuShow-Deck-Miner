@@ -559,6 +559,10 @@ if __name__ == "__main__":
             logger.info("未找到 YAML 配置，使用舊方法（CardLevelConfig.py）")
             pass
 
+    # 保存 debug 模式標記（如果有）
+    is_debug_mode = isinstance(SONGS_CONFIG, dict) and SONGS_CONFIG.get("debug_mode")
+    debug_mode_config = SONGS_CONFIG if is_debug_mode else None
+
     # 如果使用 YAML 配置，載入相關設定
     if use_yaml_config and yaml_config:
         yaml_config.print_summary()
@@ -572,25 +576,28 @@ if __name__ == "__main__":
         custom_card_levels = yaml_config.get_card_levels()  # 讀取自定義卡牌練度
         if custom_card_levels:
             logger.info(f"載入了 {len(custom_card_levels)} 張卡牌的自定義練度")
-        SONGS_CONFIG = None  # 重置為 None，讓後面使用 UNIFIED_CONFIG
+
+        # 如果不是 debug 模式，重置 SONGS_CONFIG
+        if not is_debug_mode:
+            SONGS_CONFIG = None  # 重置為 None，讓後面使用 UNIFIED_CONFIG
 
     # 如果是 Debug 模式，直接運行並退出
-    if isinstance(SONGS_CONFIG, dict) and SONGS_CONFIG.get("debug_mode"):
+    if is_debug_mode and debug_mode_config:
         # 建立歌曲配置字典（只包含有值的參數）
         debug_song_config = {}
-        if "music_id" in SONGS_CONFIG:
-            debug_song_config["music_id"] = SONGS_CONFIG["music_id"]
-        if "difficulty" in SONGS_CONFIG:
-            debug_song_config["difficulty"] = SONGS_CONFIG["difficulty"]
-        if "mastery_level" in SONGS_CONFIG:
-            debug_song_config["mastery_level"] = SONGS_CONFIG["mastery_level"]
+        if "music_id" in debug_mode_config:
+            debug_song_config["music_id"] = debug_mode_config["music_id"]
+        if "difficulty" in debug_mode_config:
+            debug_song_config["difficulty"] = debug_mode_config["difficulty"]
+        if "mastery_level" in debug_mode_config:
+            debug_song_config["mastery_level"] = debug_mode_config["mastery_level"]
 
         run_debug_mode(
-            SONGS_CONFIG["deck_cards"],
-            SONGS_CONFIG["center_index"],
+            debug_mode_config["deck_cards"],
+            debug_mode_config["center_index"],
             UNIFIED_CONFIG,
             custom_card_levels,
-            SONGS_CONFIG.get("friend_card"),
+            debug_mode_config.get("friend_card"),
             debug_song_config if debug_song_config else None
         )
         end_time = time.time()
