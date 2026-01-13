@@ -635,6 +635,16 @@ if __name__ == "__main__":
         mustcards_all = song_config["mustcards_all"]
         mustcards_any = song_config["mustcards_any"]
         banned_cards = song_config.get("banned_cards", [])  # 獲取禁卡列表，預設為空
+
+        # 好友卡池：優先使用該首歌專用的，否則使用全局的
+        song_friend_card_pool = song_config.get("friend_card_pool", [])
+        if song_friend_card_pool:
+            friend_card_pool = song_friend_card_pool
+        elif use_yaml_config and yaml_config:
+            friend_card_pool = yaml_config.config.get("friend_card_ids", [])
+        else:
+            friend_card_pool = []
+
         center_override = song_config.get("center_override", None)
         color_override = song_config.get("color_override", None)
         mastery_level = song_config["mastery_level"]
@@ -825,7 +835,8 @@ if __name__ == "__main__":
             force_dr=force_dr,
             log_path=os.path.join(FINAL_OUTPUT_DIR, f"simulation_results_{fixed_music_id}_{fixed_difficulty}.json"),
             allow_double_cards=allow_double_cards,
-            banned_cards=banned_cards
+            banned_cards=banned_cards,
+            friend_card=friend_card_pool
         )
         total_decks_to_simulate = decks_generator.total_decks
         logger.info(f"{total_decks_to_simulate} decks to be simulated.")
