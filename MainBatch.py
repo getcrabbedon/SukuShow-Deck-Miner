@@ -96,6 +96,7 @@ def save_simulation_results(results_data: list, filename: str = os.path.join("lo
         current_deck_card_ids = result['deck_card_ids']
         current_score = result['score']
         center_card = result['center_card']
+        friend_card = result.get('friend_card')
 
         # Create a standardized key for comparison (sorted tuple of card IDs)
         # Ensure card IDs are integers for consistent sorting if they are not already
@@ -108,6 +109,7 @@ def save_simulation_results(results_data: list, filename: str = os.path.join("lo
                 'deck_card_ids': current_deck_card_ids,
                 'center_card': center_card,
                 'score': current_score,
+                'friend_card': friend_card,
             }
 
     # Convert the unique decks dictionary back to a list of results
