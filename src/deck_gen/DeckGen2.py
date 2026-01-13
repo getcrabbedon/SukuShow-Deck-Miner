@@ -288,20 +288,20 @@ class DeckGeneratorWithDoubleCards:
             if has_card_conflict(set(deck)):
                 continue
             if self.check_skill_tags(count_skill_tags(deck), self.force_dr):
-                # 找出所有 C 位角色的卡片（用於指定隊長）
-                center_cards = []
-                if self.center_char:
-                    for i, card_id in enumerate(deck):
-                        char_id = card_id // 1000
-                        if char_id == self.center_char:
-                            center_cards.append(i)
-
-                # 如果沒有 C 位卡，使用 -1 表示自動選擇
-                if not center_cards:
-                    center_cards = [-1]
-
                 # 使用优化的排列生成器，避免生成无效排列
                 for perm in self._generate_valid_permutations(deck):
+                    # 找出排列後所有 C 位角色的卡片索引（用於指定隊長）
+                    center_cards = []
+                    if self.center_char:
+                        for i, card_id in enumerate(perm):
+                            char_id = card_id // 1000
+                            if char_id == self.center_char:
+                                center_cards.append(i)
+
+                    # 如果沒有 C 位卡，使用 -1 表示自動選擇
+                    if not center_cards:
+                        center_cards = [-1]
+
                     # 為每個 C 位卡生成一個卡組
                     for center_card_index in center_cards:
                         # 助戰卡迴圈
