@@ -206,6 +206,10 @@ class Deck():
             appeals = [card.smile, card.pure, card.cool]
             appeals[music_type - 1] *= 10
             result += sum(appeals)
+        if self.friend:
+            appeals = [self.friend.smile, self.friend.pure, self.friend.cool]
+            appeals[music_type - 1] *= 10
+            result += sum(appeals)
         result = ceil(result / 10)
         self.appeal = result
         return result
@@ -214,6 +218,8 @@ class Deck():
         result = 0
         for card in self.cards:
             result += card.mental
+        if self.friend:
+            result += self.friend.mental
         return result
 
     def used_all_skill_calc(self):

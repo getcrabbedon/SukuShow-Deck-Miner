@@ -179,15 +179,6 @@ def parse_arguments(unified_config):
 
     args = parser.parse_args()
 
-    # 如果提供了 --config 參數，從 YAML 載入配置
-    if args.config:
-        if not CONFIG_MANAGER_AVAILABLE:
-            logger.error("錯誤：config_manager.py 不可用，無法使用 --config 參數")
-            logger.error("請確保 config_manager.py 存在於專案目錄中")
-            sys.exit(1)
-        return {"use_yaml_config": True, "config_file": args.config}
-
-
     # 如果是 Debug 模式，返回特殊標記
     if args.debug is not None:
         # 如果指定了卡牌，使用指定的；否則使用配置中的
@@ -225,7 +216,24 @@ def parse_arguments(unified_config):
         if args.mastery:
             debug_config["mastery_level"] = args.mastery
 
+        # 如果提供了 --config 參數，加入配置檔案路徑
+        if args.config:
+            if not CONFIG_MANAGER_AVAILABLE:
+                logger.error("錯誤：config_manager.py 不可用，無法使用 --config 參數")
+                logger.error("請確保 config_manager.py 存在於專案目錄中")
+                sys.exit(1)
+            debug_config["use_yaml_config"] = True
+            debug_config["config_file"] = args.config
+
         return debug_config
+
+    # 如果提供了 --config 但沒有其他參數，從 YAML 載入配置
+    if args.config:
+        if not CONFIG_MANAGER_AVAILABLE:
+            logger.error("錯誤：config_manager.py 不可用，無法使用 --config 參數")
+            logger.error("請確保 config_manager.py 存在於專案目錄中")
+            sys.exit(1)
+        return {"use_yaml_config": True, "config_file": args.config}
 
     # 如果沒有命令列參數，使用預設配置
     if not args.songs:
@@ -282,8 +290,8 @@ def run_debug_mode(deck_cards, center_index, config, custom_card_levels=None, fr
     fixed_music_id = debug_song_config.get("music_id") if debug_song_config and "music_id" in debug_song_config else first_song["music_id"]
     fixed_difficulty = debug_song_config.get("difficulty") if debug_song_config and "difficulty" in debug_song_config else first_song["difficulty"]
     fixed_player_master_level = debug_song_config.get("mastery_level") if debug_song_config and "mastery_level" in debug_song_config else first_song["mastery_level"]
-    center_override = first_song.get("center_override")
-    color_override = first_song.get("color_override")
+    center_override = first_song.get("center_override", None)
+    color_override = first_song.get("color_override", None)
 
     logger.info(f"\n牌組卡片ID: {deck_cards}")
     if friend_card:
@@ -412,7 +420,7 @@ if __name__ == "__main__":
         # 可以配置一首或多首歌曲，程式會自動判斷
         "songs": [
             {
-                "music_id": "405117",        # 歌曲ID
+                "music_id": "405120",        # 歌曲ID
                 "difficulty": "02",          # 難度 (01=Normal, 02=Hard, 03=Expert, 04=Master)
                 "mastery_level": 50,         # 熟練度 (1-50)
                 "mustcards_all": [],         # [#1032528, 1032530, 1031530],  # 必須包含的所有卡牌
@@ -618,8 +626,8 @@ if __name__ == "__main__":
         mustcards_all = song_config["mustcards_all"]
         mustcards_any = song_config["mustcards_any"]
         banned_cards = song_config.get("banned_cards", [])  # 獲取禁卡列表，預設為空
-        center_override = song_config["center_override"]
-        color_override = song_config["color_override"]
+        center_override = song_config.get("center_override", None)
+        color_override = song_config.get("color_override", None)
         mastery_level = song_config["mastery_level"]
         leader_designation = song_config["leader_designation"]
 
