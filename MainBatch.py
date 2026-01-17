@@ -26,7 +26,7 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,  # 臨時改為 DEBUG
     format='%(message)s'
 )
 
