@@ -853,7 +853,9 @@ if __name__ == "__main__":
         os.makedirs(FINAL_OUTPUT_DIR, exist_ok=True)
 
         # Use multiprocessing.Pool with imap_unordered
-        num_processes = os.cpu_count() or 1
+        # num_processes = os.cpu_count() or 1
+        # 20260121: num_processes hardcoded to be 4. 
+        num_processes = 4
         logger.info(f"Starting parallel simulations using {num_processes} processes...")
         highest_score_overall = -1
         highest_score_deck_info = None  # 存储最佳卡组的完整信息
