@@ -199,8 +199,18 @@ class ConfigManager:
         return self.config.get("debug_deck_cards", None)
 
     def get_season_mode(self) -> str:
-        """獲取賽季模式"""
+        """獲取賽季模式（用於計算粉絲等級加成）"""
         return self.config.get("season_mode", "sukushow")
+
+    def get_lgp_mode(self) -> bool:
+        """
+        獲取 LGP 模式（是否允許雙卡）
+
+        Returns:
+            True: LGP 大賽模式，允許同角色雙卡（預設）
+            False: 日常模式，每個角色最多1張卡
+        """
+        return self.config.get("lgp_mode", True)
 
     def get_batch_size(self) -> int:
         """獲取批次大小"""
@@ -258,6 +268,19 @@ class ConfigManager:
         """
         return self.get_optimizer_config()["show_card_names"]
 
+    def get_optimizer_songs(self) -> List[Dict[str, Any]]:
+        """
+        獲取優化器的歌曲配置列表
+
+        如果 optimizer.songs 存在，使用該配置
+        否則返回空列表，讓優化器使用主 songs 配置
+
+        Returns:
+            歌曲配置列表，每個元素包含 music_id, difficulty, banned_cards 等
+        """
+        optimizer_config = self.get_optimizer_config()
+        return optimizer_config.get("songs", [])
+
     def print_summary(self):
         """列印配置摘要"""
         logger.info("=" * 60)
@@ -272,6 +295,7 @@ class ConfigManager:
         logger.info(f"歌曲數量: {len(self.get_songs_config())}")
         logger.info(f"卡牌數量: {len(self.get_card_ids())}")
         logger.info(f"賽季模式: {self.get_season_mode()}")
+        logger.info(f"LGP 模式: {'啟用（允許雙卡）' if self.get_lgp_mode() else '停用（單卡規則）'}")
         logger.info("=" * 60)
 
 

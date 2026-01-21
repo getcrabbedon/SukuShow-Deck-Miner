@@ -1,6 +1,7 @@
 import logging
 from enum import Enum
 from functools import lru_cache
+from math import ceil
 from .RLiveStatus import *
 from .RDeck import Card
 
@@ -145,6 +146,15 @@ def ApplyCenterAttribute(player_attrs: PlayerAttributes, effect_id: int, target:
     else:
         target_cards = player_attrs.deck.cards
 
+    # 助戰卡：使用助戰卡自己的角色ID進行檢查
+    friend_card = None
+    if player_attrs.deck.friend:
+        if target:
+            if CheckMultiTarget(target, player_attrs.deck.friend):
+                friend_card = player_attrs.deck.friend
+        else:
+            friend_card = player_attrs.deck.friend
+
     # 将ID解析为字符串方便操作
     id_str = str(effect_id)
 
@@ -180,6 +190,8 @@ def ApplyCenterAttribute(player_attrs: PlayerAttributes, effect_id: int, target:
             multiplier = 1 + change_amount
             for card in target_cards:
                 card.smile *= multiplier
+            if friend_card:
+                friend_card.smile *= multiplier
             if logger.isEnabledFor(logging.DEBUG):
                 action = "增加" if change_direction == 0 else "减少"
                 logger.debug(f"  对满足要求的目标应用效果: Smile值 {action} {change_amount*100:.0f}%")
@@ -189,6 +201,8 @@ def ApplyCenterAttribute(player_attrs: PlayerAttributes, effect_id: int, target:
             multiplier = 1 + change_amount
             for card in target_cards:
                 card.pure *= multiplier
+            if friend_card:
+                friend_card.pure *= multiplier
             if logger.isEnabledFor(logging.DEBUG):
                 action = "增加" if change_direction == 0 else "减少"
                 logger.debug(f"  对满足要求的目标应用效果: Pure值 {action} {change_amount*100:.0f}%")
@@ -198,6 +212,8 @@ def ApplyCenterAttribute(player_attrs: PlayerAttributes, effect_id: int, target:
             multiplier = 1 + change_amount
             for card in target_cards:
                 card.cool *= multiplier
+            if friend_card:
+                friend_card.cool *= multiplier
             if logger.isEnabledFor(logging.DEBUG):
                 action = "增加" if change_direction == 0 else "减少"
                 logger.debug(f"  对满足要求的目标应用效果: Cool值 {action} {change_amount*100:.0f}%")
@@ -207,6 +223,8 @@ def ApplyCenterAttribute(player_attrs: PlayerAttributes, effect_id: int, target:
             value_change = value_data * change_sign
             for card in target_cards:
                 card.smile += value_change
+            if friend_card:
+                friend_card.smile += value_change
             if logger.isEnabledFor(logging.DEBUG):
                 action = "增加" if change_direction == 0 else "减少"
                 logger.debug(f"  对满足要求的目标应用效果: Smile值 {action} {value_data}")
@@ -216,6 +234,8 @@ def ApplyCenterAttribute(player_attrs: PlayerAttributes, effect_id: int, target:
             value_change = value_data * change_sign
             for card in target_cards:
                 card.pure += value_change
+            if friend_card:
+                friend_card.pure += value_change
             if logger.isEnabledFor(logging.DEBUG):
                 action = "增加" if change_direction == 0 else "减少"
                 logger.debug(f"  对满足要求的目标应用效果: Pure值 {action} {value_data}")
@@ -225,6 +245,8 @@ def ApplyCenterAttribute(player_attrs: PlayerAttributes, effect_id: int, target:
             value_change = value_data * change_sign
             for card in target_cards:
                 card.cool += value_change
+            if friend_card:
+                friend_card.cool += value_change
             if logger.isEnabledFor(logging.DEBUG):
                 action = "增加" if change_direction == 0 else "减少"
                 logger.debug(f"  对满足要求的目标应用效果: Cool值 {action} {value_data}")
@@ -234,6 +256,8 @@ def ApplyCenterAttribute(player_attrs: PlayerAttributes, effect_id: int, target:
             multiplier = 1 + change_amount * change_sign
             for card in target_cards:
                 card.mental = ceil(card.mental * multiplier)
+            if friend_card:
+                friend_card.mental = ceil(friend_card.mental * multiplier)
             if logger.isEnabledFor(logging.DEBUG):
                 action = "增加" if change_direction == 0 else "减少"
                 logger.debug(f"  对满足要求的目标应用效果: 血量 {action} {change_amount*100:.0f}%")
@@ -242,6 +266,8 @@ def ApplyCenterAttribute(player_attrs: PlayerAttributes, effect_id: int, target:
             value_change = value_data * change_sign
             for card in target_cards:
                 card.mental += value_change
+            if friend_card:
+                friend_card.mental += value_change
             if logger.isEnabledFor(logging.DEBUG):
                 action = "增加" if change_direction == 0 else "减少"
                 logger.debug(f"  对满足要求的目标应用效果: 血量 {action} {value_data}")

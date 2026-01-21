@@ -96,6 +96,7 @@ def save_simulation_results(results_data: list, filename: str = os.path.join("lo
         current_deck_card_ids = result['deck_card_ids']
         current_score = result['score']
         center_card = result['center_card']
+        friend_card = result.get('friend_card')
 
         # Create a standardized key for comparison (sorted tuple of card IDs)
         # Ensure card IDs are integers for consistent sorting if they are not already
@@ -108,6 +109,7 @@ def save_simulation_results(results_data: list, filename: str = os.path.join("lo
                 'deck_card_ids': current_deck_card_ids,
                 'center_card': center_card,
                 'score': current_score,
+                'friend_card': friend_card,
             }
 
     # Convert the unique decks dictionary back to a list of results
@@ -134,43 +136,19 @@ def task_generator_func(decks_generator, chart, player_level, leader_designation
     一个生成器函数，从 decks_generator 获取每个卡组，
     并将其转换为 run_game_simulation 所需的任务格式。
 
-    对于有多张C位角色卡的卡组，生成所有可能的C位选择。
+    DeckGen2 生成器現在 yield (deck, center_card_index, friend_card)
 
     Args:
         custom_card_levels: 自定義卡牌練度 (從配置檔案讀取)
     """
     task_index = 0
-    center_char_id = chart.music.CenterCharacterId
 
-    for deck_card_ids_list in decks_generator:
-        # 找出所有C位角色的卡片索引
-        center_card_indices = []
-        # New solution: if a vaild leader is entered via the command line, the decks would already have the leader.
-        # We only need to find the index of the leader card now.
-        if leader_designation != 0 :
-            for idx, card_id in enumerate(deck_card_ids_list):
-                if int(leader_designation) == card_id: center_card_indices.append(idx)
-        # Old solution OR if no leader is supplied
-        else:
-            for idx, card_id in enumerate(deck_card_ids_list):
-                char_id = card_id // 1000
-                if char_id == center_char_id:
-                    center_card_indices.append(idx)
-
-        # 如果有多张C位角色的卡，为每张生成一个任务
-        # 如果只有一张或没有，生成一个任务（索引为-1表示自动选择）
-        if not center_card_indices:
-            # 没有C位角色卡（理论上不应该发生）
-            center_indices_to_test = [-1]
-        else:
-            # 测试每张C位角色卡作为C位
-            center_indices_to_test = center_card_indices
-
-        for center_index in center_indices_to_test:
-            sim_deck_format = convert_deck_to_simulator_format(deck_card_ids_list, custom_card_levels)
-            # 传递C位卡索引给模拟器
-            yield (sim_deck_format, chart, player_level, task_index, deck_card_ids_list, center_index)
-            task_index += 1
+    for deck_card_ids_list, center_card_index, friend_card in decks_generator:
+        # DeckGen2 已經處理了 C 位卡索引和助戰卡，直接使用
+        sim_deck_format = convert_deck_to_simulator_format(deck_card_ids_list, custom_card_levels)
+        # 傳遞給模擬器：(sim_deck_format, chart, player_level, task_index, deck_card_ids, center_index, friendcard_id)
+        yield (sim_deck_format, chart, player_level, task_index, deck_card_ids_list, center_card_index, friend_card)
+        task_index += 1
 
 
 def parse_arguments(unified_config):
@@ -191,24 +169,22 @@ def parse_arguments(unified_config):
     parser.add_argument('--config', type=str, metavar='CONFIG_FILE',
                        help='YAML配置檔案路徑（例如：config/member-alice.yaml）')
     parser.add_argument('--debug', nargs='*', type=int, metavar='CARD_ID',
-                       help='Debug模式：可選指定6張卡牌ID（按順序），不指定則使用配置中的牌組')
+                       help='Debug模式：可選指定6張卡牌ID（按順序）+1張助戰卡ID，不指定則使用配置中的牌組')
     parser.add_argument('--center-index', type=int, default=-1,
                        help='Debug模式：指定C位卡在牌組中的索引（0-5），-1表示測試所有C位選擇（預設：-1）')
+    parser.add_argument('--music', type=str,
+                       help='Debug模式：指定歌曲ID（預設使用配置中的第一首歌）')
+    parser.add_argument('--difficulty', type=str, choices=['01', '02', '03', '04'],
+                       help='Debug模式：指定難度（01=Normal, 02=Hard, 03=Expert, 04=Master）')
+    parser.add_argument('--mastery', type=int, metavar='LEVEL',
+                       help='Debug模式：指定熟練度（1-50）')
 
     args = parser.parse_args()
-
-    # 如果提供了 --config 參數，從 YAML 載入配置
-    if args.config:
-        if not CONFIG_MANAGER_AVAILABLE:
-            logger.error("錯誤：config_manager.py 不可用，無法使用 --config 參數")
-            logger.error("請確保 config_manager.py 存在於專案目錄中")
-            sys.exit(1)
-        return {"use_yaml_config": True, "config_file": args.config}
-
 
     # 如果是 Debug 模式，返回特殊標記
     if args.debug is not None:
         # 如果指定了卡牌，使用指定的；否則使用配置中的
+        friend_card_id = None
         if len(args.debug) == 0:
             # 沒有指定卡牌，使用配置中的
             deck_cards = unified_config["debug_deck_cards"]
@@ -217,10 +193,49 @@ def parse_arguments(unified_config):
             # 指定了6張卡牌
             deck_cards = args.debug
             logger.info("使用命令列指定的牌組")
+        elif len(args.debug) == 7:
+            # 指定了6張卡牌 + 1張助戰卡
+            deck_cards = args.debug[:6]
+            friend_card_id = args.debug[6]
+            logger.info("使用命令列指定的牌組 + 助戰卡")
         else:
-            logger.error("Debug模式錯誤：必須指定6張卡牌ID或不指定任何卡牌")
+            logger.error("Debug模式錯誤：必須指定6張卡牌ID（可選+1張助戰卡）或不指定任何卡牌")
             sys.exit(1)
-        return {"debug_mode": True, "deck_cards": deck_cards, "center_index": args.center_index}
+
+        # 建立 debug 模式的配置
+        debug_config = {
+            "debug_mode": True,
+            "deck_cards": deck_cards,
+            "center_index": args.center_index,
+            "friend_card": friend_card_id
+        }
+
+        # 如果指定了歌曲參數，加入配置
+        if args.music:
+            debug_config["music_id"] = args.music
+        if args.difficulty:
+            debug_config["difficulty"] = args.difficulty
+        if args.mastery:
+            debug_config["mastery_level"] = args.mastery
+
+        # 如果提供了 --config 參數，加入配置檔案路徑
+        if args.config:
+            if not CONFIG_MANAGER_AVAILABLE:
+                logger.error("錯誤：config_manager.py 不可用，無法使用 --config 參數")
+                logger.error("請確保 config_manager.py 存在於專案目錄中")
+                sys.exit(1)
+            debug_config["use_yaml_config"] = True
+            debug_config["config_file"] = args.config
+
+        return debug_config
+
+    # 如果提供了 --config 但沒有其他參數，從 YAML 載入配置
+    if args.config:
+        if not CONFIG_MANAGER_AVAILABLE:
+            logger.error("錯誤：config_manager.py 不可用，無法使用 --config 參數")
+            logger.error("請確保 config_manager.py 存在於專案目錄中")
+            sys.exit(1)
+        return {"use_yaml_config": True, "config_file": args.config}
 
     # 如果沒有命令列參數，使用預設配置
     if not args.songs:
@@ -256,7 +271,7 @@ def parse_arguments(unified_config):
     return songs_config
 
 
-def run_debug_mode(deck_cards, center_index, config, custom_card_levels=None):
+def run_debug_mode(deck_cards, center_index, config, custom_card_levels=None, friend_card=None, debug_song_config=None):
     """
     Debug模式：計算單一固定牌組的分數
 
@@ -265,6 +280,8 @@ def run_debug_mode(deck_cards, center_index, config, custom_card_levels=None):
         center_index: 指定使用第幾張C位卡（-1表示測試所有）
         config: 統一配置字典
         custom_card_levels: 自定義卡牌練度 (從配置檔案讀取)
+        friend_card: 助戰卡ID（可選）
+        debug_song_config: Debug 模式歌曲配置（可選，覆寫預設值）
     """
     logger.info("="*60)
     logger.info("進入 Debug 模式：計算單一牌組分數")
@@ -272,13 +289,15 @@ def run_debug_mode(deck_cards, center_index, config, custom_card_levels=None):
 
     # 從統一配置區讀取歌曲配置（使用第一首歌的配置）
     first_song = config["songs"][0]
-    fixed_music_id = first_song["music_id"]
-    fixed_difficulty = first_song["difficulty"]
-    fixed_player_master_level = first_song["mastery_level"]
-    center_override = first_song["center_override"]
-    color_override = first_song["color_override"]
+    fixed_music_id = debug_song_config.get("music_id") if debug_song_config and "music_id" in debug_song_config else first_song["music_id"]
+    fixed_difficulty = debug_song_config.get("difficulty") if debug_song_config and "difficulty" in debug_song_config else first_song["difficulty"]
+    fixed_player_master_level = debug_song_config.get("mastery_level") if debug_song_config and "mastery_level" in debug_song_config else first_song["mastery_level"]
+    center_override = first_song.get("center_override", None)
+    color_override = first_song.get("color_override", None)
 
     logger.info(f"\n牌組卡片ID: {deck_cards}")
+    if friend_card:
+        logger.info(f"助戰卡ID: {friend_card}")
     logger.info(f"\n歌曲配置:")
     logger.info(f"  歌曲ID: {fixed_music_id}")
     logger.info(f"  難度: {fixed_difficulty}")
@@ -344,22 +363,26 @@ def run_debug_mode(deck_cards, center_index, config, custom_card_levels=None):
 
         # 調用 run_game_simulation
         result = run_game_simulation(
-            (sim_deck_format, pre_initialized_chart, fixed_player_master_level, 0, deck_cards, center_idx)
+            (sim_deck_format, pre_initialized_chart, fixed_player_master_level, 0, deck_cards, center_idx, friend_card)
         )
 
         current_score = result['final_score']
         cards_played_log = result["cards_played_log"]
         center_card = result['center_card']
+        friend_card = result.get('friend_card')
 
         logger.info(f"\n--- 模擬結束 ---")
         logger.info(f"分數: {current_score:,}")
         logger.info(f"C位卡片: {center_card}")
+        if friend_card:
+            logger.info(f"助戰卡: {friend_card}")
         logger.info(f"打出記錄: {cards_played_log}")
         logger.info(f"打出次數: {len(cards_played_log)}")
 
         results.append({
             "center_index": center_idx,
             "center_card": center_card,
+            "friend_card": friend_card,
             "score": current_score,
             "card_log": cards_played_log
         })
@@ -399,7 +422,7 @@ if __name__ == "__main__":
         # 可以配置一首或多首歌曲，程式會自動判斷
         "songs": [
             {
-                "music_id": "405117",        # 歌曲ID
+                "music_id": "405120",        # 歌曲ID
                 "difficulty": "02",          # 難度 (01=Normal, 02=Hard, 03=Expert, 04=Master)
                 "mastery_level": 50,         # 熟練度 (1-50)
                 "mustcards_all": [],         # [#1032528, 1032530, 1031530],  # 必須包含的所有卡牌
@@ -536,6 +559,10 @@ if __name__ == "__main__":
             logger.info("未找到 YAML 配置，使用舊方法（CardLevelConfig.py）")
             pass
 
+    # 保存 debug 模式標記（如果有）
+    is_debug_mode = isinstance(SONGS_CONFIG, dict) and SONGS_CONFIG.get("debug_mode")
+    debug_mode_config = SONGS_CONFIG if is_debug_mode else None
+
     # 如果使用 YAML 配置，載入相關設定
     if use_yaml_config and yaml_config:
         yaml_config.print_summary()
@@ -549,11 +576,30 @@ if __name__ == "__main__":
         custom_card_levels = yaml_config.get_card_levels()  # 讀取自定義卡牌練度
         if custom_card_levels:
             logger.info(f"載入了 {len(custom_card_levels)} 張卡牌的自定義練度")
-        SONGS_CONFIG = None  # 重置為 None，讓後面使用 UNIFIED_CONFIG
+
+        # 如果不是 debug 模式，重置 SONGS_CONFIG
+        if not is_debug_mode:
+            SONGS_CONFIG = None  # 重置為 None，讓後面使用 UNIFIED_CONFIG
 
     # 如果是 Debug 模式，直接運行並退出
-    if isinstance(SONGS_CONFIG, dict) and SONGS_CONFIG.get("debug_mode"):
-        run_debug_mode(SONGS_CONFIG["deck_cards"], SONGS_CONFIG["center_index"], UNIFIED_CONFIG, custom_card_levels)
+    if is_debug_mode and debug_mode_config:
+        # 建立歌曲配置字典（只包含有值的參數）
+        debug_song_config = {}
+        if "music_id" in debug_mode_config:
+            debug_song_config["music_id"] = debug_mode_config["music_id"]
+        if "difficulty" in debug_mode_config:
+            debug_song_config["difficulty"] = debug_mode_config["difficulty"]
+        if "mastery_level" in debug_mode_config:
+            debug_song_config["mastery_level"] = debug_mode_config["mastery_level"]
+
+        run_debug_mode(
+            debug_mode_config["deck_cards"],
+            debug_mode_config["center_index"],
+            UNIFIED_CONFIG,
+            custom_card_levels,
+            debug_mode_config.get("friend_card"),
+            debug_song_config if debug_song_config else None
+        )
         end_time = time.time()
         logger.info(f"\n總耗時: {end_time - start_time:.2f} 秒")
         sys.exit(0)
@@ -588,8 +634,19 @@ if __name__ == "__main__":
         fixed_difficulty = song_config["difficulty"]
         mustcards_all = song_config["mustcards_all"]
         mustcards_any = song_config["mustcards_any"]
-        center_override = song_config["center_override"]
-        color_override = song_config["color_override"]
+        banned_cards = song_config.get("banned_cards", [])  # 獲取禁卡列表，預設為空
+
+        # 好友卡池：優先使用該首歌專用的，否則使用全局的
+        song_friend_card_pool = song_config.get("friend_card_pool", [])
+        if song_friend_card_pool:
+            friend_card_pool = song_friend_card_pool
+        elif use_yaml_config and yaml_config:
+            friend_card_pool = yaml_config.config.get("friend_card_ids", [])
+        else:
+            friend_card_pool = []
+
+        center_override = song_config.get("center_override", None)
+        color_override = song_config.get("color_override", None)
         mastery_level = song_config["mastery_level"]
         leader_designation = song_config["leader_designation"]
 
@@ -762,13 +819,24 @@ if __name__ == "__main__":
 
         logger.info("Pre-calculating deck amount...")
 
+        # 判斷是否使用雙卡模式（LGP）
+        if use_yaml_config and yaml_config:
+            allow_double_cards = yaml_config.get_lgp_mode()
+        else:
+            allow_double_cards = True  # 預設使用雙卡模式（向下相容）
+
+        logger.info(f"卡組生成模式: {'LGP（允許雙卡）' if allow_double_cards else '日常（單卡規則）'}")
+
         # 3. 获取卡组生成器
         decks_generator = generate_decks_with_double_cards(
             cardpool=current_card_ids,
             mustcards=[mustcards_all, mustcards_any, mustskills_all],
             center_char=pre_initialized_chart.music.CenterCharacterId,
             force_dr=force_dr,
-            log_path=os.path.join(FINAL_OUTPUT_DIR, f"simulation_results_{fixed_music_id}_{fixed_difficulty}.json")
+            log_path=os.path.join(FINAL_OUTPUT_DIR, f"simulation_results_{fixed_music_id}_{fixed_difficulty}.json"),
+            allow_double_cards=allow_double_cards,
+            banned_cards=banned_cards,
+            friend_card=friend_card_pool
         )
         total_decks_to_simulate = decks_generator.total_decks
         logger.info(f"{total_decks_to_simulate} decks to be simulated.")
@@ -811,10 +879,11 @@ if __name__ == "__main__":
                 deck_card_ids = result['deck_card_ids']
                 center_card = result['center_card']
 
-                # 记录当前卡组的得分、卡牌、C位卡牌，添加到结果列表中
+                # 记录当前卡组的得分、卡牌、C位卡牌、助戰卡，添加到结果列表中
                 current_batch_results.append({
                     "deck_card_ids": deck_card_ids,  # 使用卡牌ID列表
                     "center_card": center_card,
+                    "friend_card": result.get('friend_card'),  # 助戰卡 (可能為 None)
                     "score": current_score,
                 })
                 results_processed_count += 1

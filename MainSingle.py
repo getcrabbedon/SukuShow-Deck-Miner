@@ -4,7 +4,7 @@ import os
 
 from src.core.RCardData import db_load
 from src.core.RChart import Chart, MusicDB
-from src.core.RDeck import Deck
+from src.core.RDeck import Deck, Card
 from src.core.RLiveStatus import PlayerAttributes
 from src.core.SkillResolver import UseCardSkill, ApplyCenterSkillEffect, ApplyCenterAttribute, CheckCenterSkillCondition
 from src.config.CardLevelConfig import convert_deck_to_simulator_format, fix_windows_console_encoding, DEATH_NOTE
@@ -71,15 +71,21 @@ if __name__ == "__main__":
     d = Deck(
         db_carddata, db_skill,
         convert_deck_to_simulator_format(
-            [1032532, 1042519, 1052901, 1033902, 1033528, 1051503],
+            [1041902, 1041513, 1021701, 1021523, 1022702, 1031533],
             custom_card_levels
         )
     )
 
+    # 好友卡配置
+    # 指定一张助战卡 (需要同时指定练度)
+    # 留空则无助战卡
+    # 示例: friendcard = (1031519, [140, 14, 14])
+    friendcard = (1031519, [120, 14, 14])
+
     # 歌曲、难度设置
     # 难度 01 / 02 / 03 / 04 对应 Normal / Hard / Expert / Master
-    fixed_music_id = "405123"
-    fixed_difficulty = "04"
+    fixed_music_id = "405129"
+    fixed_difficulty = "02"
     fixed_player_master_level = 50
 
     # 强制替换歌曲C位和颜色
@@ -102,9 +108,21 @@ if __name__ == "__main__":
     if color_override:
         c.music.MusicType = color_override
 
+    # 處理助戰卡
+    centerfriend = False
+    if friendcard:
+        d.friend = Card(db_carddata, db_skill, *friendcard)
+        centerfriend = d.friend.characters_id == c.music.CenterCharacterId
+
     logging.info("--- 卡组信息 ---")
     for card in d.cards:
         logging.info(f"Cost: {card.cost:2}\t{card.full_name}")
+
+    if friendcard:
+        logging.info(f"\n--- 助战卡信息 ---")
+        logging.info(f"Cost: {d.friend.cost:2}\t{d.friend.full_name}")
+        if centerfriend:
+            logging.info("助战卡为C位角色，将触发C位技能")
 
     # 找出所有C位角色的卡片
     center_char_id = c.music.CenterCharacterId
@@ -347,6 +365,12 @@ if __name__ == "__main__":
                     logger.debug(f"\n尝试应用C位技能: {centercard.full_name}")
                     for condition, effect in centercard.get_center_skill():
                         if CheckCenterSkillCondition(player, condition, centercard, event):
+                            ApplyCenterSkillEffect(player, effect)
+                # 助戰卡 C 位技能
+                if centerfriend:
+                    logger.debug(f"\n尝试应用C位技能: {d.friend.full_name}")
+                    for condition, effect in d.friend.get_center_skill():
+                        if CheckCenterSkillCondition(player, condition, d.friend, event):
                             ApplyCenterSkillEffect(player, effect)
                 if event == "LiveEnd":
                     break
