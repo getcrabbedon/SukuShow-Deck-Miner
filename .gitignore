@@ -33,9 +33,8 @@
 !config/.gitignore
 
 # 允許 Data 目錄（僅網頁版配置生成器需要的文件）
-!Data/
-!Data/CardDatas.json
-!Data/Musics.yaml
+# fuck no
+
 # 其他大型文件（CenterSkills.json, RhythmGameSkills.json 等）僅用於本地模擬器，不推送
 
 # 允許 requirements.txt
