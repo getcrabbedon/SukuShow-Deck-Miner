@@ -429,6 +429,9 @@ if __name__ == "__main__":
         logger.info(f"\n{output}")
 
         output_filename = "best_3_song_combo.txt" if combo_song_count == 3 else "best_2_song_combo.txt"
+        if args.config:
+            output_filename ="best_3_song_combo_" +  config._extract_member_name(args.config) + ".txt"
+            
         with open(output_filename, "w", encoding="utf-8") as f:
             f.write(output)
             f.write("\n")
