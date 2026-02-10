@@ -193,6 +193,8 @@ def run_game_simulation(
         match event:
             case "Single" | "Hold" | "HoldMid" | "Flick" | "Trace":
                 combo_count += 1
+                if logger.isEnabledFor(logging.DEBUG):
+                    logger.debug(f"[NOTE] i_event={i_event}, time={timestamp:.3f}, type={event}, combo_before={player.combo}, score_before={player.score}")
                 if afk_mental and player.mental.get_rate() > afk_mental:
                     # 檢查 MISS 是否會導致血量歸零
                     if event == "Trace" or event == "HoldMid":

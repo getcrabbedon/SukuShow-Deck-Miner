@@ -71,7 +71,7 @@ if __name__ == "__main__":
     d = Deck(
         db_carddata, db_skill,
         convert_deck_to_simulator_format(
-            [1041902, 1041513, 1021701, 1021523, 1022702, 1031533],
+            [1033533, 1021701, 1021523, 1033528, 1022702, 1023702],
             custom_card_levels
         )
     )
@@ -80,11 +80,11 @@ if __name__ == "__main__":
     # 指定一张助战卡 (需要同时指定练度)
     # 留空则无助战卡
     # 示例: friendcard = (1031519, [140, 14, 14])
-    friendcard = (1031519, [120, 14, 14])
+    friendcard = None
 
     # 歌曲、难度设置
     # 难度 01 / 02 / 03 / 04 对应 Normal / Hard / Expert / Master
-    fixed_music_id = "405129"
+    fixed_music_id = "405133"
     fixed_difficulty = "02"
     fixed_player_master_level = 50
 
@@ -97,7 +97,7 @@ if __name__ == "__main__":
     # 0: 使用第1张C位角色的卡
     # 1: 使用第2张C位角色的卡
     # -1: 测试所有C位选择并输出对比（会运行多次模拟）
-    center_card_choice = -1
+    center_card_choice = 1
 
     c = Chart(musicdb, fixed_music_id, fixed_difficulty)
     player = PlayerAttributes(fixed_player_master_level)
@@ -111,6 +111,11 @@ if __name__ == "__main__":
     # 處理助戰卡
     centerfriend = False
     if friendcard:
+        # 檢查好友卡是否與卡組中的卡牌重複
+        deck_card_ids = [int(card.card_id) for card in d.cards]
+        if friendcard[0] in deck_card_ids:
+            logging.error(f"錯誤：好友卡 {friendcard[0]} 與卡組中的卡牌重複！")
+            exit(1)
         d.friend = Card(db_carddata, db_skill, *friendcard)
         centerfriend = d.friend.characters_id == c.music.CenterCharacterId
 
